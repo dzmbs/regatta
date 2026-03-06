@@ -1,0 +1,1194 @@
+openapi: 3.0.3
+info:
+  title: Exchange API
+  description: API for the Exchange
+  license:
+    name: ''
+  version: 0.0.1
+paths:
+  /api/v1/account:
+    get:
+      tags:
+      - Account
+      summary: Get Account Info
+      operationId: get_account_info
+      parameters:
+      - name: account
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountInfoResponse'
+  /api/v1/account/settings:
+    get:
+      tags:
+      - Account
+      summary: Get Account Settings
+      operationId: get_account_settings
+      parameters:
+      - name: account
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AccountSettingsResponse'
+  /api/v1/account/leverage:
+    post:
+      tags:
+      - Account
+      summary: Update Leverage
+      operationId: update_leverage
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateLeverageRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateLeverageResponse'
+  /api/v1/account/margin:
+    post:
+      tags:
+      - Account
+      summary: Update Margin Mode
+      operationId: update_margin_mode
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMarginModeRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateMarginModeResponse'
+  /api/v1/account/withdraw:
+    post:
+      tags:
+      - Account
+      summary: Withdraw
+      operationId: withdraw
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WithdrawRequest'
+      responses:
+        '200':
+          description: Success
+  /api/v1/positions:
+    get:
+      tags:
+      - Positions
+      summary: Get Current Positions
+      operationId: get_current_positions
+      parameters:
+      - name: account
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PositionsResponse'
+  /api/v1/positions/history:
+    get:
+      tags:
+      - Positions
+      summary: Get Position History
+      operationId: get_position_history
+      parameters:
+      - name: account
+        in: query
+        schema:
+          type: string
+      - name: symbol
+        in: query
+        schema:
+          type: string
+      - name: start_time
+        in: query
+        schema:
+          type: integer
+          format: int64
+      - name: end_time
+        in: query
+        schema:
+          type: integer
+          format: int64
+      - name: limit
+        in: query
+        schema:
+          type: integer
+      - name: offset
+        in: query
+        schema:
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PositionHistoryResponse'
+  /api/v1/positions/tpsl:
+    post:
+      tags:
+      - Positions
+      summary: Set Position TP/SL
+      operationId: set_position_tpsl
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetPositionTPSLRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SetPositionTPSLResponse'
+  /api/v1/info:
+    get:
+      tags:
+      - Info
+      summary: Get Exchange Info
+      operationId: get_info
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ExchangeInfo'
+  /api/v1/info/prices:
+    get:
+      tags:
+      - Info
+      summary: Get Prices
+      operationId: get_prices
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {}
+  /api/v1/kline:
+    get:
+      tags:
+      - Kline
+      summary: Get Kline
+      operationId: get_kline
+      parameters:
+      - name: symbol
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: interval
+        in: query
+        required: true
+        schema:
+          $ref: '#/components/schemas/CandleInterval'
+      - name: startTime
+        in: query
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: endTime
+        in: query
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/KlineResponse'
+  /api/v1/kline/mark:
+    get:
+      tags:
+      - Kline
+      summary: Get Mark Price Kline
+      operationId: get_mark_kline
+      parameters:
+      - name: symbol
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: interval
+        in: query
+        required: true
+        schema:
+          $ref: '#/components/schemas/CandleInterval'
+      - name: startTime
+        in: query
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: endTime
+        in: query
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/KlineResponse'
+  /api/v1/book:
+    get:
+      tags:
+      - Info
+      summary: Get Orderbook
+      operationId: get_orderbook
+      parameters:
+      - name: symbol
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: agg
+        in: query
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: Orderbook data
+  /api/v1/trades:
+    get:
+      tags:
+      - Info
+      summary: Get Recent Trades
+      operationId: get_recent_trades
+      parameters:
+      - name: symbol
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Recent trades
+  /api/v1/funding_rate/history:
+    get:
+      tags:
+      - Funding
+      summary: Get Historical Funding Rate
+      operationId: get_funding_rate_history
+      parameters:
+      - name: symbol
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: limit
+        in: query
+        schema:
+          type: integer
+      - name: cursor
+        in: query
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Funding rate history
+  /api/v1/funding/history:
+    get:
+      tags:
+      - Funding
+      summary: Get Account Funding History
+      operationId: get_funding_history
+      parameters:
+      - name: account
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: limit
+        in: query
+        schema:
+          type: integer
+      - name: cursor
+        in: query
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FundingHistoryResponse'
+  /api/v1/trades/history:
+    get:
+      tags:
+      - Account
+      summary: Get Trade History
+      operationId: get_trade_history
+      parameters:
+      - name: account
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: symbol
+        in: query
+        schema:
+          type: string
+      - name: start_time
+        in: query
+        schema:
+          type: integer
+          format: int64
+      - name: limit
+        in: query
+        schema:
+          type: integer
+      - name: cursor
+        in: query
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Trade history
+  /api/v1/portfolio:
+    get:
+      tags:
+      - Portfolio
+      summary: Get Account Equity History
+      operationId: get_portfolio_history
+      parameters:
+      - name: account
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: time_range
+        in: query
+        schema:
+          type: string
+          enum: [1d, 7d, 14d, 30d, all]
+      - name: start_time
+        in: query
+        schema:
+          type: integer
+          format: int64
+      - name: limit
+        in: query
+        schema:
+          type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PortfolioHistoryResponse'
+  /api/v1/account/balance/history:
+    get:
+      tags:
+      - Account
+      summary: Get Account Balance History
+      operationId: get_balance_history
+      parameters:
+      - name: account
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: limit
+        in: query
+        schema:
+          type: integer
+      - name: cursor
+        in: query
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Balance history
+  /api/v1/orders:
+    get:
+      tags:
+      - Orders
+      summary: Get Open Orders
+      operationId: get_open_orders
+      parameters:
+      - name: account
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OpenOrderResponse'
+  /api/v1/orders/create:
+    post:
+      tags:
+      - Orders
+      summary: Create Limit Order
+      operationId: create_order
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateOrderResponse'
+  /api/v1/orders/create_market:
+    post:
+      tags:
+      - Orders
+      summary: Create Market Order
+      operationId: create_market_order
+  /api/v1/orders/edit:
+    post:
+      tags:
+      - Orders
+      summary: Edit Order
+      operationId: edit_order
+  /api/v1/orders/cancel:
+    post:
+      tags:
+      - Orders
+      summary: Cancel Order
+      operationId: cancel_order
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelOrderRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CancelOrderResponse'
+  /api/v1/orders/cancel_all:
+    post:
+      tags:
+      - Orders
+      summary: Cancel All Orders
+      operationId: cancel_all_orders
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelAllOrdersRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CancelAllOrdersResponse'
+  /api/v1/orders/stop/create:
+    post:
+      tags:
+      - Orders
+      summary: Create Stop Order
+      operationId: create_stop_order
+  /api/v1/orders/stop/cancel:
+    post:
+      tags:
+      - Orders
+      summary: Cancel Stop Order
+      operationId: cancel_stop_order
+  /api/v1/orders/batch:
+    post:
+      tags:
+      - Orders
+      summary: Batch Orders
+      operationId: process_batch_orders
+  /api/v1/orders/history:
+    get:
+      tags:
+      - Orders
+      summary: Get Order History
+      operationId: get_order_history
+      parameters:
+      - name: account
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: limit
+        in: query
+        schema:
+          type: integer
+      - name: cursor
+        in: query
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OrderHistoryResponse'
+  /api/v1/orders/history_by_id:
+    get:
+      tags:
+      - Orders
+      summary: Get Order History By ID
+      operationId: get_order_history_by_id
+      parameters:
+      - name: order_id
+        in: query
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OrderHistoryResponse'
+  /api/v1/orders/twap/create:
+    post:
+      tags:
+      - TWAP
+      summary: Create TWAP Order
+      operationId: create_twap_order
+  /api/v1/orders/twap/cancel:
+    post:
+      tags:
+      - TWAP
+      summary: Cancel TWAP Order
+      operationId: cancel_twap_order
+  /api/v1/orders/twap:
+    get:
+      tags:
+      - TWAP
+      summary: Get Open TWAP Orders
+      operationId: get_open_twap_orders
+      parameters:
+      - name: account
+        in: query
+        required: true
+        schema:
+          type: string
+  /api/v1/orders/twap/history:
+    get:
+      tags:
+      - TWAP
+      summary: Get TWAP History
+      operationId: get_twap_history
+      parameters:
+      - name: account
+        in: query
+        required: true
+        schema:
+          type: string
+  /api/v1/orders/twap/history_by_id:
+    get:
+      tags:
+      - TWAP
+      summary: Get TWAP History By ID
+      operationId: get_twap_history_by_id
+      parameters:
+      - name: order_id
+        in: query
+        required: true
+        schema:
+          type: string
+  /api/v1/account/subaccount/create:
+    post:
+      tags:
+      - Subaccounts
+      summary: Create Subaccount
+      operationId: create_subaccount
+  /api/v1/account/subaccount/list:
+    post:
+      tags:
+      - Subaccounts
+      summary: List Subaccounts
+      operationId: list_subaccounts
+  /api/v1/account/subaccount/transfer:
+    post:
+      tags:
+      - Subaccounts
+      summary: Transfer Funds
+      operationId: transfer_funds
+  /api/v1/agent/bind:
+    post:
+      tags:
+      - Agent
+      summary: Bind Agent Wallet
+      operationId: bind_agent_wallet
+  /api/v1/agent/list:
+    post:
+      tags:
+      - Agent
+      summary: List Agent Wallets
+      operationId: list_agent_wallets
+  /api/v1/agent/revoke:
+    post:
+      tags:
+      - Agent
+      summary: Revoke Agent Wallet
+      operationId: revoke_agent_wallet
+  /api/v1/agent/revoke_all:
+    post:
+      tags:
+      - Agent
+      summary: Revoke All Agent Wallets
+      operationId: revoke_all_agent_wallets
+  /api/v1/agent/ip_whitelist/list:
+    post:
+      tags:
+      - Agent
+      summary: List IP Whitelist
+      operationId: list_agent_ip_whitelist
+  /api/v1/agent/ip_whitelist/add:
+    post:
+      tags:
+      - Agent
+      summary: Add IP to Whitelist
+      operationId: add_agent_whitelisted_ip
+  /api/v1/agent/ip_whitelist/remove:
+    post:
+      tags:
+      - Agent
+      summary: Remove IP from Whitelist
+      operationId: remove_agent_whitelisted_ip
+  /api/v1/agent/ip_whitelist/toggle:
+    post:
+      tags:
+      - Agent
+      summary: Toggle IP Whitelist
+      operationId: set_agent_ip_whitelist_enabled
+  /api/v1/account/api_keys/create:
+    post:
+      tags:
+      - API Keys
+      summary: Create API Config Key
+      operationId: create_api_key
+  /api/v1/account/api_keys/revoke:
+    post:
+      tags:
+      - API Keys
+      summary: Revoke API Config Key
+      operationId: revoke_api_key
+  /api/v1/account/api_keys:
+    post:
+      tags:
+      - API Keys
+      summary: List API Config Keys
+      operationId: list_api_keys
+  /api/v1/lake/create:
+    post:
+      tags:
+      - Lake
+      summary: Create Lake
+      operationId: create_lake
+  /api/v1/lake/deposit:
+    post:
+      tags:
+      - Lake
+      summary: Deposit to Lake
+      operationId: deposit_to_lake
+  /api/v1/lake/withdraw:
+    post:
+      tags:
+      - Lake
+      summary: Withdraw from Lake
+      operationId: withdraw_from_lake
+components:
+  schemas:
+    AccountInfoResponse:
+      type: object
+      properties:
+        balance:
+          type: string
+        fee_level:
+          type: integer
+        maker_fee:
+          type: string
+        taker_fee:
+          type: string
+        account_equity:
+          type: string
+        available_to_spend:
+          type: string
+        available_to_withdraw:
+          type: string
+        pending_balance:
+          type: string
+        total_margin_used:
+          type: string
+        cross_mmr:
+          type: string
+        positions_count:
+          type: integer
+        orders_count:
+          type: integer
+        stop_orders_count:
+          type: integer
+        updated_at:
+          type: integer
+          format: int64
+        use_ltp_for_stop_orders:
+          type: boolean
+    AccountSettingsResponse:
+      type: object
+      properties:
+        symbol:
+          type: string
+        isolated:
+          type: boolean
+        leverage:
+          type: integer
+        created_at:
+          type: integer
+          format: int64
+        updated_at:
+          type: integer
+          format: int64
+    UpdateLeverageRequest:
+      type: object
+      required: [user, signature, symbol, leverage]
+      properties:
+        user:
+          type: string
+        signature:
+          type: string
+        symbol:
+          type: string
+        leverage:
+          type: integer
+        agent_wallet:
+          type: string
+          nullable: true
+    UpdateLeverageResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        error:
+          type: string
+          nullable: true
+    UpdateMarginModeRequest:
+      type: object
+      required: [user, signature, symbol, is_isolated]
+      properties:
+        user:
+          type: string
+        signature:
+          type: string
+        symbol:
+          type: string
+        is_isolated:
+          type: boolean
+        agent_wallet:
+          type: string
+          nullable: true
+    UpdateMarginModeResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        error:
+          type: string
+          nullable: true
+    WithdrawRequest:
+      type: object
+      required: [user, amount, signature]
+      properties:
+        user:
+          type: string
+        amount:
+          type: string
+        signature:
+          type: string
+    PositionsResponse:
+      type: object
+      properties:
+        symbol:
+          type: string
+        side:
+          type: string
+        amount:
+          type: string
+        entry_price:
+          type: string
+        margin:
+          type: string
+        funding:
+          type: string
+        isolated:
+          type: boolean
+        created_at:
+          type: integer
+          format: int64
+        updated_at:
+          type: integer
+          format: int64
+    PositionHistoryResponse:
+      type: object
+      properties:
+        history_id:
+          type: integer
+        order_id:
+          type: integer
+        client_order_id:
+          type: string
+        symbol:
+          type: string
+        amount:
+          type: string
+        price:
+          type: string
+        entry_price:
+          type: string
+        fee:
+          type: string
+        pnl:
+          type: string
+        event_type:
+          type: string
+        side:
+          type: string
+        created_at:
+          type: integer
+          format: int64
+        cause:
+          type: string
+    SetPositionTPSLRequest:
+      type: object
+      required: [user, signature, symbol, side]
+      properties:
+        user:
+          type: string
+        signature:
+          type: string
+        symbol:
+          type: string
+        side:
+          type: string
+        take_profit:
+          $ref: '#/components/schemas/StopOrderInfo'
+        stop_loss:
+          $ref: '#/components/schemas/StopOrderInfo'
+        agent_wallet:
+          type: string
+          nullable: true
+    SetPositionTPSLResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+    StopOrderInfo:
+      type: object
+      properties:
+        stop_price:
+          type: string
+        limit_price:
+          type: string
+        amount:
+          type: string
+        client_order_id:
+          type: string
+    ExchangeInfo:
+      type: object
+      properties:
+        symbol:
+          type: string
+        tick_size:
+          type: string
+        min_tick:
+          type: string
+        max_tick:
+          type: string
+        lot_size:
+          type: string
+        max_leverage:
+          type: integer
+        isolated_only:
+          type: boolean
+        min_order_size:
+          type: string
+        max_order_size:
+          type: string
+        funding_rate:
+          type: string
+        next_funding_rate:
+          type: string
+        created_at:
+          type: integer
+          format: int64
+    CandleInterval:
+      type: string
+      enum: [1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 8h, 12h, 1d]
+    KlineResponse:
+      type: object
+      properties:
+        t:
+          type: integer
+          format: int64
+        T:
+          type: integer
+          format: int64
+        s:
+          type: string
+        i:
+          type: string
+        o:
+          type: string
+        c:
+          type: string
+        h:
+          type: string
+        l:
+          type: string
+        v:
+          type: string
+        n:
+          type: integer
+    OpenOrderResponse:
+      type: object
+      properties:
+        order_id:
+          type: integer
+          format: int64
+        client_order_id:
+          type: string
+        symbol:
+          type: string
+        side:
+          type: string
+        price:
+          type: string
+        initial_amount:
+          type: string
+        filled_amount:
+          type: string
+        cancelled_amount:
+          type: string
+        stop_price:
+          type: string
+          nullable: true
+        order_type:
+          type: string
+        stop_parent_order_id:
+          type: integer
+          nullable: true
+        reduce_only:
+          type: boolean
+        created_at:
+          type: integer
+          format: int64
+        updated_at:
+          type: integer
+          format: int64
+    CreateOrderRequest:
+      type: object
+      required: [user, signature, symbol, price, amount, side, tif, reduce_only]
+      properties:
+        user:
+          type: string
+        signature:
+          type: string
+        symbol:
+          type: string
+        price:
+          type: string
+        amount:
+          type: string
+        side:
+          type: string
+        tif:
+          type: string
+          enum: [GTC, IOC, ALO, TOB]
+        reduce_only:
+          type: boolean
+        client_order_id:
+          type: string
+        take_profit:
+          $ref: '#/components/schemas/StopOrderInfo'
+        stop_loss:
+          $ref: '#/components/schemas/StopOrderInfo'
+        agent_wallet:
+          type: string
+          nullable: true
+    CreateOrderResponse:
+      type: object
+      properties:
+        order_id:
+          type: integer
+          format: int64
+    CancelOrderRequest:
+      type: object
+      required: [user, signature, symbol]
+      properties:
+        user:
+          type: string
+        signature:
+          type: string
+        symbol:
+          type: string
+        order_id:
+          type: integer
+          format: int64
+        client_order_id:
+          type: string
+        agent_wallet:
+          type: string
+          nullable: true
+    CancelOrderResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+    CancelAllOrdersRequest:
+      type: object
+      required: [user, signature, all_symbols]
+      properties:
+        user:
+          type: string
+        signature:
+          type: string
+        all_symbols:
+          type: boolean
+        exclude_reduce_only:
+          type: boolean
+        symbol:
+          type: string
+        agent_wallet:
+          type: string
+          nullable: true
+    CancelAllOrdersResponse:
+      type: object
+      properties:
+        cancelled_count:
+          type: integer
+    OrderHistoryResponse:
+      type: object
+      properties:
+        order_id:
+          type: integer
+          format: int64
+        client_order_id:
+          type: string
+        symbol:
+          type: string
+        side:
+          type: string
+        initial_price:
+          type: string
+        average_filled_price:
+          type: string
+        amount:
+          type: string
+        filled_amount:
+          type: string
+        order_status:
+          type: string
+          enum: [open, partially_filled, filled, cancelled, rejected]
+        order_type:
+          type: string
+        stop_price:
+          type: string
+          nullable: true
+        stop_parent_order_id:
+          type: integer
+          nullable: true
+        reduce_only:
+          type: boolean
+        reason:
+          type: string
+          nullable: true
+        created_at:
+          type: integer
+          format: int64
+        updated_at:
+          type: integer
+          format: int64
+    FundingHistoryResponse:
+      type: object
+      properties:
+        history_id:
+          type: integer
+        symbol:
+          type: string
+        side:
+          type: string
+        amount:
+          type: string
+        payout:
+          type: string
+        rate:
+          type: string
+        created_at:
+          type: integer
+          format: int64
+    PortfolioHistoryResponse:
+      type: object
+      properties:
+        account_equity:
+          type: string
+        pnl:
+          type: string
+        timestamp:
+          type: integer
+          format: int64
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        error:
+          type: string
+        code:
+          type: integer
+        data:
+          nullable: true

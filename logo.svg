@@ -1,0 +1,580 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 620" fill="none">
+  <defs>
+    <style>
+      .ink {
+        stroke: #0f2240;
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .fill-hull {
+        fill: #cde8f7;
+        stroke: #0f2240;
+        stroke-width: 2.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .fill-sail-light {
+        fill: #ddf0fb;
+        stroke: #0f2240;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .fill-sail-mid {
+        fill: #b8dff5;
+        stroke: #0f2240;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .fill-navy {
+        fill: #1a4a7a;
+        stroke: #0f2240;
+        stroke-width: 1.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .fill-dark {
+        fill: #0f2240;
+      }
+      .rigging {
+        stroke: #0f2240;
+        fill: none;
+        stroke-width: 1.5;
+        stroke-linecap: round;
+      }
+    </style>
+  </defs>
+
+  <!-- ═══════════════════════════════════ -->
+  <!--  MAST — main vertical spar          -->
+  <!-- ═══════════════════════════════════ -->
+  <rect x="340" y="22" width="7" height="330" rx="3" fill="#0F2240" />
+  <!-- Second mast (mizzen), shorter, slightly right -->
+  <rect x="440" y="80" width="6" height="240" rx="3" fill="#0F2240" />
+
+  <!-- ═══════════════════════════════════ -->
+  <!--  FLAG                               -->
+  <!-- ═══════════════════════════════════ -->
+  <!-- Flag body — white rectangle with gentle wave -->
+  <path
+    d="M347 22 Q380 26 400 34 Q380 42 347 44 Z"
+    fill="#f5f5f5"
+    stroke="#0F2240"
+    stroke-width="2"
+  />
+
+  <!-- Pacifica logo mark inside flag, scaled to ~18px, centered in flag -->
+  <!-- Original viewBox 0 0 1380 1380 → scale to fit ~28×28 in flag area centered at 375,33 -->
+  <g transform="translate(362, 19) scale(0.022)">
+    <path
+      d="M690.116 550.13C707.554 623.636 755.024 670.016 830.346 693.024C831.73 693.452 832.941 694.312 833.801 695.478C834.66 696.644 835.124 698.055 835.124 699.503C835.124 700.952 834.66 702.362 833.801 703.528C832.941 704.694 831.73 705.554 830.346 705.982C796.458 714.024 765.437 731.237 740.681 755.737C715.924 780.237 698.389 811.078 689.995 844.881C689.601 846.313 688.749 847.577 687.567 848.477C686.386 849.378 684.941 849.866 683.455 849.866C681.969 849.866 680.525 849.378 679.344 848.477C678.163 847.577 677.31 846.313 676.917 844.881C668.438 811.858 651.394 781.656 627.508 757.327C603.131 732.481 572.511 714.661 538.866 705.739C537.482 705.311 536.271 704.452 535.411 703.286C534.551 702.12 534.088 700.71 534.088 699.261C534.088 697.812 534.551 696.402 535.411 695.236C536.271 694.07 537.482 693.211 538.866 692.783C613.34 670.985 659.114 623.636 677.158 550.13C677.586 548.746 678.446 547.536 679.612 546.676C680.777 545.816 682.188 545.352 683.637 545.352C685.085 545.352 686.496 545.816 687.662 546.676C688.828 547.536 689.688 548.746 690.116 550.13Z"
+      fill="#0F2240"
+    />
+    <path
+      d="M1103.18 827.685C1103.18 970.192 1047.95 1107.15 949.086 1209.79C850.221 1312.43 715.421 1372.75 573.014 1378.07C570.377 1378.19 567.744 1377.77 565.274 1376.84C562.803 1375.91 560.545 1374.5 558.635 1372.68C556.724 1370.86 555.2 1368.67 554.154 1366.25C553.108 1363.82 552.563 1361.21 552.549 1358.58V1103.06C616.083 1103.05 677.66 1081.08 726.851 1040.87C776.042 1000.66 809.823 944.683 822.474 882.421C825.332 867.184 833.39 853.41 845.271 843.45C857.152 833.49 872.121 827.961 887.624 827.806L1103.18 827.685Z"
+      fill="#0F2240"
+    />
+    <path
+      d="M552.187 887.385V1103.06C409.68 1103.07 272.718 1047.83 170.082 948.968C67.4458 850.103 7.12738 715.304 1.80058 572.896C1.68652 570.26 2.10488 567.627 3.03196 565.156C3.95904 562.685 5.37589 560.427 7.19615 558.517C9.01642 556.606 11.2021 555.082 13.625 554.036C16.048 552.99 18.6581 552.444 21.2971 552.431H276.812C276.913 615.962 298.988 677.501 339.291 726.611C379.595 775.722 435.645 809.378 497.936 821.872C513.157 824.839 526.88 832.988 536.771 844.932C546.661 856.876 552.11 871.878 552.187 887.385Z"
+      fill="#0F2240"
+    />
+    <path
+      d="M492.849 552.311H277.176C277.171 409.783 332.42 272.804 431.31 170.165C530.201 67.5256 665.031 7.21979 807.46 1.92358C810.092 1.82644 812.717 2.25722 815.181 3.19043C817.644 4.12365 819.896 5.54064 821.803 7.35758C823.71 9.17453 825.235 11.355 826.287 13.7702C827.338 16.1854 827.895 18.7868 827.926 21.4208V276.936C764.369 276.931 702.767 298.911 653.569 339.148C604.371 379.385 570.605 435.401 558 497.696C555.162 512.944 547.112 526.731 535.226 536.695C523.34 546.658 508.358 552.179 492.849 552.311Z"
+      fill="#0F2240"
+    />
+    <path
+      d="M827.808 492.731V276.936C970.324 276.9 1107.3 332.123 1209.95 430.994C1312.59 529.865 1372.9 664.682 1378.19 807.1C1378.32 809.731 1377.92 812.36 1377.01 814.831C1376.1 817.301 1374.69 819.56 1372.88 821.473C1371.07 823.386 1368.89 824.912 1366.47 825.959C1364.06 827.006 1361.45 827.552 1358.82 827.565H1103.18C1103.18 764.023 1081.2 702.438 1040.96 653.26C1000.72 604.082 944.707 570.34 882.423 557.761C867.205 554.906 853.446 546.866 843.489 535.01C833.531 523.154 827.99 508.213 827.808 492.731Z"
+      fill="#0F2240"
+    />
+  </g>
+
+  <!-- ═══════════════════════════════════ -->
+  <!--  SAILS                              -->
+  <!-- ═══════════════════════════════════ -->
+
+  <!-- Main sail (largest, right of main mast) — bellied out to right -->
+  <path
+    d="
+    M344 30
+    C 420 120, 540 230, 600 340
+    C 560 350, 490 355, 440 352
+    C 420 320, 390 280, 370 240
+    C 355 190, 345 120, 344 30
+    Z
+  "
+    fill="#ddf0fb"
+    stroke="#0F2240"
+    stroke-width="2.5"
+    stroke-linejoin="round"
+  />
+
+  <!-- Main sail interior panel lines (gives illustrated sail look) -->
+  <path
+    d="M370 240 C 400 250 440 255 470 252"
+    stroke="#0F2240"
+    stroke-width="1.2"
+    stroke-linecap="round"
+    opacity="0.5"
+  />
+  <path
+    d="M360 290 C 395 302 440 308 475 305"
+    stroke="#0F2240"
+    stroke-width="1.2"
+    stroke-linecap="round"
+    opacity="0.5"
+  />
+  <path
+    d="M352 190 C 375 198 410 202 435 200"
+    stroke="#0F2240"
+    stroke-width="1"
+    stroke-linecap="round"
+    opacity="0.4"
+  />
+
+  <!-- Second large sail (mizzen main) — slightly behind, right of mizzen mast -->
+  <path
+    d="
+    M443 82
+    C 500 160, 590 260, 640 360
+    C 610 368, 570 372, 530 370
+    C 510 330, 480 275, 462 220
+    C 452 175, 445 130, 443 82
+    Z
+  "
+    fill="#cce6f5"
+    stroke="#0F2240"
+    stroke-width="2.2"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M462 220 C 490 230 520 234 545 232"
+    stroke="#0F2240"
+    stroke-width="1.1"
+    stroke-linecap="round"
+    opacity="0.45"
+  />
+  <path
+    d="M452 270 C 484 282 520 287 548 285"
+    stroke="#0F2240"
+    stroke-width="1.1"
+    stroke-linecap="round"
+    opacity="0.45"
+  />
+
+  <!-- Foresail — left of main mast, triangular -->
+  <path
+    d="
+    M344 44
+    C 290 130, 230 230, 200 340
+    C 240 352, 290 358, 340 355
+    C 342 290, 343 170, 344 44
+    Z
+  "
+    fill="#ddf0fb"
+    stroke="#0F2240"
+    stroke-width="2.2"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M255 260 C 285 268 315 270 340 268"
+    stroke="#0F2240"
+    stroke-width="1.1"
+    stroke-linecap="round"
+    opacity="0.45"
+  />
+  <path
+    d="M235 305 C 268 315 305 318 338 316"
+    stroke="#0F2240"
+    stroke-width="1.1"
+    stroke-linecap="round"
+    opacity="0.45"
+  />
+
+  <!-- Inner staysail / second foresail — smaller, between mast and foresail -->
+  <path
+    d="
+    M344 120
+    C 310 180, 280 250, 268 330
+    C 295 338, 322 341, 342 339
+    C 343 270, 343 190, 344 120
+    Z
+  "
+    fill="#b8dff5"
+    stroke="#0F2240"
+    stroke-width="1.8"
+    stroke-linejoin="round"
+  />
+
+  <!-- JIB — long bowsprit sail, pointing forward-left -->
+  <path
+    d="
+    M200 340
+    C 165 355, 120 368, 80 362
+    C 100 348, 160 340, 200 340
+    Z
+  "
+    fill="#ddf0fb"
+    stroke="#0F2240"
+    stroke-width="2"
+    stroke-linejoin="round"
+  />
+
+  <!-- Dark navy inner sail / boom sail (the deep blue triangular accent) -->
+  <path
+    d="
+    M344 200
+    C 355 240, 370 280, 380 340
+    C 360 345, 344 348, 344 348
+    Z
+  "
+    fill="#1a4a7a"
+    stroke="#0F2240"
+    stroke-width="1.5"
+    stroke-linejoin="round"
+  />
+
+  <!-- Mizzen dark inner sail -->
+  <path
+    d="
+    M443 160
+    C 452 200, 462 250, 468 320
+    C 455 325, 443 328, 443 328
+    Z
+  "
+    fill="#1a4a7a"
+    stroke="#0F2240"
+    stroke-width="1.5"
+    stroke-linejoin="round"
+  />
+
+  <!-- ═══════════════════════════════════ -->
+  <!--  BOOM / SPARS                       -->
+  <!-- ═══════════════════════════════════ -->
+  <!-- Main boom — angled from mast base to back -->
+  <line
+    x1="245"
+    y1="352"
+    x2="600"
+    y2="342"
+    stroke="#0F2240"
+    stroke-width="5"
+    stroke-linecap="round"
+  />
+  <!-- Mizzen boom -->
+  <line
+    x1="360"
+    y1="358"
+    x2="560"
+    y2="350"
+    stroke="#0F2240"
+    stroke-width="3.5"
+    stroke-linecap="round"
+  />
+  <!-- Bowsprit — extends forward-left from hull -->
+  <line
+    x1="198"
+    y1="380"
+    x2="80"
+    y2="360"
+    stroke="#0F2240"
+    stroke-width="5"
+    stroke-linecap="round"
+  />
+
+  <!-- ═══════════════════════════════════ -->
+  <!--  RIGGING                            -->
+  <!-- ═══════════════════════════════════ -->
+  <line
+    x1="344"
+    y1="26"
+    x2="200"
+    y2="355"
+    class="rigging"
+    stroke-width="1.3"
+    opacity="0.6"
+  />
+  <line
+    x1="344"
+    y1="26"
+    x2="84"
+    y2="362"
+    class="rigging"
+    stroke-width="1.1"
+    opacity="0.5"
+  />
+  <line
+    x1="344"
+    y1="26"
+    x2="600"
+    y2="344"
+    class="rigging"
+    stroke-width="1.1"
+    opacity="0.5"
+  />
+  <line
+    x1="443"
+    y1="84"
+    x2="344"
+    y2="355"
+    class="rigging"
+    stroke-width="1.1"
+    opacity="0.5"
+  />
+  <line
+    x1="443"
+    y1="84"
+    x2="600"
+    y2="344"
+    class="rigging"
+    stroke-width="1.1"
+    opacity="0.5"
+  />
+  <!-- Shrouds -->
+  <line
+    x1="344"
+    y1="80"
+    x2="310"
+    y2="375"
+    class="rigging"
+    stroke-width="1"
+    opacity="0.4"
+  />
+  <line
+    x1="344"
+    y1="80"
+    x2="375"
+    y2="375"
+    class="rigging"
+    stroke-width="1"
+    opacity="0.4"
+  />
+
+  <!-- ═══════════════════════════════════ -->
+  <!--  HULL                               -->
+  <!-- ═══════════════════════════════════ -->
+
+  <!-- Hull main body -->
+  <path
+    d="
+    M198 378
+    C 210 372, 230 366, 250 362
+    L 600 345
+    C 625 344, 648 348, 658 360
+    C 665 374, 660 394, 640 414
+    C 610 438, 560 455, 480 464
+    C 420 470, 355 470, 295 462
+    C 250 456, 210 444, 185 428
+    C 170 418, 170 398, 198 378
+    Z
+  "
+    fill="#cde8f7"
+    stroke="#0F2240"
+    stroke-width="3"
+    stroke-linejoin="round"
+    stroke-linecap="round"
+  />
+
+  <!-- Hull dark lower stripe -->
+  <path
+    d="
+    M210 434
+    C 250 448, 310 458, 390 460
+    C 460 461, 530 455, 580 443
+    C 610 436, 638 424, 648 412
+    C 648 412, 620 435, 570 448
+    C 520 460, 450 466, 380 464
+    C 310 462, 245 452, 205 436
+    Z
+  "
+    fill="#1a4a7a"
+    stroke="none"
+  />
+
+  <!-- Deck line / railing -->
+  <path
+    d="M240 364 C 360 358 500 350 600 346"
+    stroke="#0F2240"
+    stroke-width="2"
+    stroke-linecap="round"
+    opacity="0.7"
+  />
+
+  <!-- Cabin structure on deck -->
+  <path
+    d="
+    M370 360 L 400 352 L 480 348 L 510 355 L 510 372 L 370 378 Z
+  "
+    fill="#b8dff5"
+    stroke="#0F2240"
+    stroke-width="2"
+    stroke-linejoin="round"
+  />
+
+  <!-- Cabin windows -->
+  <rect
+    x="385"
+    y="358"
+    width="12"
+    height="8"
+    rx="2"
+    fill="#1a4a7a"
+    stroke="#0F2240"
+    stroke-width="1.2"
+  />
+  <rect
+    x="405"
+    y="356"
+    width="12"
+    height="8"
+    rx="2"
+    fill="#1a4a7a"
+    stroke="#0F2240"
+    stroke-width="1.2"
+  />
+  <rect
+    x="426"
+    y="354"
+    width="12"
+    height="8"
+    rx="2"
+    fill="#1a4a7a"
+    stroke="#0F2240"
+    stroke-width="1.2"
+  />
+
+  <!-- Cleat / deck detail -->
+  <path
+    d="M295 368 L 310 362 L 335 360 L 335 366 L 310 368 Z"
+    fill="#ddf0fb"
+    stroke="#0F2240"
+    stroke-width="1.5"
+  />
+
+  <!-- Hull outline reinforcement -->
+  <path
+    d="
+    M198 378
+    C 210 372, 230 366, 250 362
+    L 600 345
+    C 625 344, 648 348, 658 360
+    C 665 374, 660 394, 640 414
+    C 610 438, 560 455, 480 464
+    C 420 470, 355 470, 295 462
+    C 250 456, 210 444, 185 428
+    C 170 418, 170 398, 198 378
+  "
+    fill="none"
+    stroke="#0F2240"
+    stroke-width="3"
+    stroke-linejoin="round"
+    stroke-linecap="round"
+  />
+
+  <!-- Stern post / rudder hint -->
+  <line
+    x1="648"
+    y1="360"
+    x2="655"
+    y2="400"
+    stroke="#0F2240"
+    stroke-width="3.5"
+    stroke-linecap="round"
+  />
+
+  <!-- ═══════════════════════════════════ -->
+  <!--  WAVES                              -->
+  <!-- ═══════════════════════════════════ -->
+
+  <!-- Main water body -->
+  <path
+    d="
+    M100 490
+    C 140 478, 180 486, 220 490
+    C 260 494, 300 486, 340 482
+    C 380 478, 420 484, 460 490
+    C 500 496, 540 490, 580 486
+    C 600 484, 615 486, 620 490
+    L 620 530
+    C 580 540, 500 548, 400 548
+    C 300 548, 180 540, 100 530
+    Z
+  "
+    fill="#b8dff5"
+    stroke="none"
+  />
+
+  <!-- Wave crest 1 — widest, just below hull -->
+  <path
+    d="M80 476 Q 120 464, 165 474 Q 210 484, 255 472 Q 300 462, 345 472 Q 390 482, 435 470 Q 480 460, 525 470 Q 570 480, 610 470 Q 635 464, 650 470"
+    stroke="#0F2240"
+    stroke-width="3.5"
+    fill="none"
+    stroke-linecap="round"
+  />
+
+  <!-- Foam / spray under hull -->
+  <path
+    d="M195 478 Q 215 470, 240 476 Q 265 482, 290 474"
+    stroke="#0F2240"
+    stroke-width="2"
+    fill="none"
+    stroke-linecap="round"
+    opacity="0.6"
+  />
+  <path
+    d="M390 470 Q 415 462, 440 468 Q 465 474, 490 466"
+    stroke="#0F2240"
+    stroke-width="2"
+    fill="none"
+    stroke-linecap="round"
+    opacity="0.6"
+  />
+
+  <!-- Wave crest 2 -->
+  <path
+    d="M95 500 Q 138 490, 182 500 Q 226 510, 270 500 Q 314 490, 358 500 Q 402 510, 446 500 Q 490 490, 534 500 Q 565 507, 590 500"
+    stroke="#0F2240"
+    stroke-width="3"
+    fill="none"
+    stroke-linecap="round"
+  />
+
+  <!-- Wave crest 3 -->
+  <path
+    d="M112 522 Q 152 514, 192 522 Q 232 530, 272 522 Q 312 514, 352 522 Q 392 530, 432 522 Q 468 515, 502 522"
+    stroke="#0F2240"
+    stroke-width="2.5"
+    fill="none"
+    stroke-linecap="round"
+  />
+
+  <!-- Wave crest 4 — smallest, most distant -->
+  <path
+    d="M130 542 Q 165 535, 200 542 Q 235 549, 270 542 Q 305 535, 340 542 Q 372 548, 405 542"
+    stroke="#0F2240"
+    stroke-width="2"
+    fill="none"
+    stroke-linecap="round"
+    opacity="0.7"
+  />
+
+  <!-- Small detail waves near bow -->
+  <path
+    d="M160 485 Q 175 480, 192 485"
+    stroke="#0F2240"
+    stroke-width="1.8"
+    fill="none"
+    stroke-linecap="round"
+    opacity="0.8"
+  />
+  <path
+    d="M560 478 Q 578 472, 598 478"
+    stroke="#0F2240"
+    stroke-width="1.8"
+    fill="none"
+    stroke-linecap="round"
+    opacity="0.8"
+  />
+</svg>
