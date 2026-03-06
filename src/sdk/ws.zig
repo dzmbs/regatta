@@ -71,7 +71,11 @@ pub const Client = struct {
 
     pub fn nextText(self: *Client) !?[]u8 {
         while (true) {
-            const msg = try self.inner.read() orelse return null;
+            const msg = self.inner.read() catch |err| switch (err) {
+                error.WouldBlock, error.ReadFailed => return null,
+                error.Closed => return error.Closed,
+                else => return err,
+            } orelse return null;
             defer self.inner.done(msg);
             switch (msg.type) {
                 .text => return try self.allocator.dupe(u8, msg.data),

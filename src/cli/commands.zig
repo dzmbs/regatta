@@ -1582,10 +1582,17 @@ pub fn streamCmd(allocator: std.mem.Allocator, w: *Writer, config: *Config, a: a
 
     var last_ping_ms: i64 = std.time.milliTimestamp();
     while (true) {
-        if (try ws_client.nextText()) |text| {
+        const maybe_text = ws_client.nextText() catch |e| switch (e) {
+            error.Closed => return,
+            else => return failFmt(w, "ws read: {s}", .{@errorName(e)}),
+        };
+        if (maybe_text) |text| {
             defer allocator.free(text);
             if (w.format == .json) {
                 try w.rawJson(text);
+            } else if (std.mem.indexOf(u8, text, "\"channel\":\"subscribe\"") != null) {
+                try w.styled(Style.muted, text);
+                try w.print("\n", .{});
             } else {
                 try w.print("{s}\n", .{text});
             }
@@ -1681,6 +1688,12 @@ fn isSuccess(value: std.json.Value) bool {
                     else => false,
                 };
             }
+            if (obj.get("code")) |c| {
+                return switch (c) {
+                    .integer => |ii| ii >= 200 and ii < 300,
+                    else => false,
+                };
+            }
         },
         else => {},
     }
@@ -1694,6 +1707,18 @@ fn extractError(value: std.json.Value) []const u8 {
                 return switch (e) {
                     .string => |s| s,
                     else => "unknown error",
+                };
+            }
+            if (obj.get("message")) |m| {
+                return switch (m) {
+                    .string => |s| s,
+                    else => "request failed",
+                };
+            }
+            if (obj.get("code")) |c| {
+                return switch (c) {
+                    .integer => |ii| if (ii >= 200 and ii < 300) "" else "request failed",
+                    else => "request failed",
                 };
             }
         },
