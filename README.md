@@ -317,7 +317,9 @@ tests/
 
 ## Release
 
-Build release artifacts with:
+GitHub Releases are built automatically by Actions when you push a tag like `v0.0.1`.
+
+Manual local build remains available:
 
 ```bash
 ./scripts/release.sh 0.0.1
