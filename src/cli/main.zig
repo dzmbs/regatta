@@ -9,7 +9,7 @@ const output_mod = @import("output.zig");
 const commands = @import("commands.zig");
 
 const Style = output_mod.Style;
-const VERSION = "0.0.3";
+const VERSION = "0.0.4";
 
 const EXIT_OK: u8 = 0;
 const EXIT_ERROR: u8 = 1;
@@ -410,7 +410,7 @@ fn printHelp(w: *output_mod.Writer) !void {
         \\  regatta prices                              All prices
         \\  regatta buy BTC 0.1 @100000                 Limit buy
         \\  regatta sell ETH 1.0                        Market sell
-        \\  regatta deposit solana 100                  Deposit 100 USDC on Solana
+        \\  regatta deposit solana 10                   Deposit 10 USDC on Solana (minimum)
         \\  regatta cancel BTC --all                    Cancel all BTC orders
         \\  regatta positions --json | jq '.data'       Pipe to jq
         \\  regatta buy BTC 0.1 @95000 --dry-run        Preview order

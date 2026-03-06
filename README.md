@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v0.0.3-blue" alt="version" />
+  <img src="https://img.shields.io/badge/version-v0.0.4-blue" alt="version" />
   <img src="https://img.shields.io/badge/license-MIT-green" alt="license" />
   <img src="https://img.shields.io/badge/status-beta-orange" alt="status" />
   <img src="https://img.shields.io/badge/platform-macOS_|_Linux-blue" alt="platform" />
@@ -95,7 +95,7 @@ regatta cancel --all
 # Access / onboarding helpers
 regatta access status --json
 regatta access claim <CODE>
-regatta deposit solana 15
+regatta deposit solana 10
 ```
 
 ---
@@ -171,7 +171,7 @@ Convenience exports include:
 | `regatta stop <SYM> --side long --stop-price P [--limit-price P]` | Place stop order |
 | `regatta tpsl <SYM> <SIDE> --tp P --sl P` | Place take-profit / stop-loss |
 | `regatta twap <SYM> buy\|sell <AMT> --duration <SECS> --slippage <PCT>` | TWAP execution |
-| `regatta deposit solana <AMOUNT> [--rpc URL]` | Deposit USDC on Solana |
+| `regatta deposit solana <AMOUNT> [--rpc URL]` | Deposit USDC on Solana (minimum 10 USDC) |
 
 **Flags:** `--reduce-only`, `--tif GTC|IOC|ALO|TOB`, `--slippage <PCT>`, `--dry-run`
 
@@ -317,22 +317,22 @@ tests/
 
 ## Release
 
-GitHub Releases are built automatically by Actions when you push a tag like `v0.0.3`.
+GitHub Releases are built automatically by Actions when you push a tag like `v0.0.4`.
 
 Manual local build remains available:
 
 ```bash
-./scripts/release.sh 0.0.3
+./scripts/release.sh 0.0.4
 ```
 
 This produces:
-- `dist/0.0.3/regatta-darwin-arm64`
-- `dist/0.0.3/regatta-darwin-x64`
-- `dist/0.0.3/regatta-linux-arm64`
-- `dist/0.0.3/regatta-linux-x64`
-- `dist/0.0.3/SHA256SUMS`
+- `dist/0.0.4/regatta-darwin-arm64`
+- `dist/0.0.4/regatta-darwin-x64`
+- `dist/0.0.4/regatta-linux-arm64`
+- `dist/0.0.4/regatta-linux-x64`
+- `dist/0.0.4/SHA256SUMS`
 
-Current `0.0.3` binary sizes from local release builds:
+Current `0.0.4` binary sizes from local release builds:
 - macOS arm64: ~678 KB
 - macOS x64: ~711 KB
 - Linux arm64: ~560 KB

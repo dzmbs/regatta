@@ -1006,16 +1006,90 @@ pub fn depositCmd(allocator: std.mem.Allocator, w: *Writer, config: *Config, a: 
         return error.CommandFailed;
     }
     const amount = a.amount orelse return error.MissingArgument;
-    const signer = config.getSigner() catch return error.MissingKey;
     const rpc_url = a.rpc_url orelse config.getSolanaRpcUrl();
+    const amount_units = sdk.solana.parseUsdcAmount(amount) catch return error.InvalidFlag;
+    if (amount_units < sdk.solana.MIN_DEPOSIT_USDC_UNITS) {
+        if (w.format == .json) {
+            var buf: [1024]u8 = undefined;
+            const ms = w.elapsedMs();
+            const body = std.fmt.bufPrint(&buf,
+                "{{\"v\":1,\"status\":\"error\",\"cmd\":\"deposit\",\"error\":\"CommandFailed\",\"message\":\"minimum Pacifica deposit is 10 USDC\",\"data\":{{\"network\":\"solana\",\"requested_amount\":\"{s}\",\"minimum_amount\":\"10\",\"rpc\":\"{s}\"}},\"timing_ms\":{d}}}",
+                .{ amount, rpc_url, ms }
+            ) catch return error.Overflow;
+            try w.rawJson(body);
+            return error.CommandFailed;
+        }
+        try w.fail("minimum Pacifica deposit is 10 USDC");
+        return error.CommandFailed;
+    }
 
-    var result = try sdk.solana.depositUsdc(allocator, rpc_url, &signer, amount);
+    const signer = config.getSigner() catch return error.MissingKey;
+
+    var preflight = sdk.solana.depositPreflight(allocator, rpc_url, &signer) catch |e| {
+        if (w.format == .json) {
+            var buf: [1024]u8 = undefined;
+            const ms = w.elapsedMs();
+            const body = std.fmt.bufPrint(&buf,
+                "{{\"v\":1,\"status\":\"error\",\"cmd\":\"deposit\",\"error\":\"CommandFailed\",\"message\":\"deposit preflight failed\",\"data\":{{\"reason\":\"{s}\",\"network\":\"solana\",\"requested_amount\":\"{s}\",\"rpc\":\"{s}\"}},\"timing_ms\":{d}}}",
+                .{ @errorName(e), amount, rpc_url, ms }
+            ) catch return error.Overflow;
+            try w.rawJson(body);
+            return error.CommandFailed;
+        }
+        return failFmt(w, "deposit preflight failed ({s})", .{@errorName(e)});
+    };
+    defer preflight.deinit(allocator);
+
+    if (preflight.usdc_units < amount_units) {
+        if (w.format == .json) {
+            var buf: [1400]u8 = undefined;
+            const ms = w.elapsedMs();
+            const body = std.fmt.bufPrint(&buf,
+                "{{\"v\":1,\"status\":\"error\",\"cmd\":\"deposit\",\"error\":\"CommandFailed\",\"message\":\"insufficient USDC balance for deposit amount\",\"data\":{{\"network\":\"solana\",\"requested_amount\":\"{s}\",\"requested_units\":{d},\"rpc\":\"{s}\",\"address\":\"{s}\",\"usdc_ata\":\"{s}\",\"sol_lamports\":{d},\"usdc_units\":{d}}},\"timing_ms\":{d}}}",
+                .{ amount, amount_units, rpc_url, preflight.address_b58, preflight.ata_b58, preflight.sol_lamports, preflight.usdc_units, ms }
+            ) catch return error.Overflow;
+            try w.rawJson(body);
+            return error.CommandFailed;
+        }
+        try w.fail("insufficient USDC balance for deposit amount");
+        try w.kv("RPC", rpc_url);
+        try w.kv("Address", preflight.address_b58);
+        try w.kv("USDC ATA", preflight.ata_b58);
+        try w.kv("Requested USDC", amount);
+        return error.CommandFailed;
+    }
+
+    var result = sdk.solana.depositUsdc(allocator, rpc_url, &signer, amount) catch |e| {
+        if (w.format == .json) {
+            var buf: [1600]u8 = undefined;
+            const ms = w.elapsedMs();
+            const body = std.fmt.bufPrint(&buf,
+                "{{\"v\":1,\"status\":\"error\",\"cmd\":\"deposit\",\"error\":\"CommandFailed\",\"message\":\"deposit failed\",\"data\":{{\"reason\":\"{s}\",\"network\":\"solana\",\"requested_amount\":\"{s}\",\"rpc\":\"{s}\",\"address\":\"{s}\",\"usdc_ata\":\"{s}\",\"sol_lamports\":{d},\"usdc_units\":{d}}},\"timing_ms\":{d}}}",
+                .{ @errorName(e), amount, rpc_url, preflight.address_b58, preflight.ata_b58, preflight.sol_lamports, preflight.usdc_units, ms }
+            ) catch return error.Overflow;
+            try w.rawJson(body);
+            return error.CommandFailed;
+        }
+
+        try w.failFmt("deposit failed: {s}", .{@errorName(e)});
+        try w.kv("RPC", rpc_url);
+        try w.kv("Address", preflight.address_b58);
+        try w.kv("USDC ATA", preflight.ata_b58);
+        try w.kv("Requested USDC", amount);
+        var sol_buf: [64]u8 = undefined;
+        const sol_str = std.fmt.bufPrint(&sol_buf, "{d}", .{preflight.sol_lamports}) catch "-";
+        try w.kv("SOL lamports", sol_str);
+        var usdc_buf: [64]u8 = undefined;
+        const usdc_str = std.fmt.bufPrint(&usdc_buf, "{d}", .{preflight.usdc_units}) catch "-";
+        try w.kv("USDC units", usdc_str);
+        return error.CommandFailed;
+    };
     defer result.deinit(allocator);
 
     if (w.format == .json) {
-        var buf: [1024]u8 = undefined;
+        var buf: [1400]u8 = undefined;
         const status = result.confirmation_status orelse "submitted";
-        const body = std.fmt.bufPrint(&buf, "{{\"signature\":\"{s}\",\"confirmation_status\":\"{s}\",\"network\":\"solana\",\"amount\":\"{s}\"}}", .{ result.signature, status, amount }) catch return error.Overflow;
+        const body = std.fmt.bufPrint(&buf, "{{\"signature\":\"{s}\",\"confirmation_status\":\"{s}\",\"network\":\"solana\",\"amount\":\"{s}\",\"rpc\":\"{s}\",\"address\":\"{s}\",\"usdc_ata\":\"{s}\",\"sol_lamports\":{d},\"usdc_units\":{d}}}", .{ result.signature, status, amount, rpc_url, preflight.address_b58, preflight.ata_b58, preflight.sol_lamports, preflight.usdc_units }) catch return error.Overflow;
         try w.jsonRaw(body);
         return;
     }
@@ -1024,6 +1098,14 @@ pub fn depositCmd(allocator: std.mem.Allocator, w: *Writer, config: *Config, a: 
     try w.kv("Amount", amount);
     try w.kv("Network", "solana");
     try w.kv("RPC", rpc_url);
+    try w.kv("Address", preflight.address_b58);
+    try w.kv("USDC ATA", preflight.ata_b58);
+    var sol_buf: [64]u8 = undefined;
+    const sol_str = std.fmt.bufPrint(&sol_buf, "{d}", .{preflight.sol_lamports}) catch "-";
+    try w.kv("SOL lamports", sol_str);
+    var usdc_buf: [64]u8 = undefined;
+    const usdc_str = std.fmt.bufPrint(&usdc_buf, "{d}", .{preflight.usdc_units}) catch "-";
+    try w.kv("USDC units", usdc_str);
     try w.kv("Signature", result.signature);
     try w.kv("Status", result.confirmation_status orelse "submitted");
     try w.footer();

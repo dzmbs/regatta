@@ -16,6 +16,8 @@ const PDA_MARKER = "ProgramDerivedAddress";
 const DEFAULT_COMPUTE_UNIT_LIMIT: u32 = 200_000;
 const DEFAULT_COMPUTE_UNIT_PRICE: u64 = 375_000;
 
+pub const MIN_DEPOSIT_USDC_UNITS: u64 = 10_000_000;
+
 const CompileMode = enum {
     // Deterministic grouped ordering; matches the current Solana Rust SDK.
     sorted,
@@ -52,6 +54,18 @@ pub const DepositResult = struct {
     pub fn deinit(self: *DepositResult, allocator: std.mem.Allocator) void {
         allocator.free(self.signature);
         if (self.confirmation_status) |s| allocator.free(s);
+    }
+};
+
+pub const DepositPreflight = struct {
+    address_b58: []u8,
+    ata_b58: []u8,
+    sol_lamports: u64,
+    usdc_units: u64,
+
+    pub fn deinit(self: *DepositPreflight, allocator: std.mem.Allocator) void {
+        allocator.free(self.address_b58);
+        allocator.free(self.ata_b58);
     }
 };
 
@@ -111,6 +125,42 @@ fn buildDepositDebugWithMode(
     };
 }
 
+pub fn depositPreflight(
+    allocator: std.mem.Allocator,
+    rpc_url: []const u8,
+    signer: *const Signer,
+) !DepositPreflight {
+    var client = RpcClient.init(allocator, rpc_url);
+    defer client.deinit();
+
+    const signer_pub = signer.pubkeyBytes();
+    var addr_buf: [64]u8 = undefined;
+    const addr_b58 = try allocator.dupe(u8, base58.encode(&addr_buf, &signer_pub));
+    errdefer allocator.free(addr_b58);
+
+    const ata = try deriveAssociatedTokenAddress(signer_pub, try decodePubkey(TOKEN_PROGRAM_ID), try decodePubkey(USDC_MINT), try decodePubkey(ASSOCIATED_TOKEN_PROGRAM_ID));
+    var ata_buf: [64]u8 = undefined;
+    const ata_b58 = try allocator.dupe(u8, base58.encode(&ata_buf, &ata));
+    errdefer allocator.free(ata_b58);
+
+    const sol_lamports = client.getSolBalance(addr_b58) catch |e| switch (e) {
+        error.ReadFailed => return error.SolBalanceReadFailed,
+        else => return e,
+    };
+    const usdc_units = client.getTokenBalance(ata_b58) catch |e| switch (e) {
+        error.ReadFailed => return error.UsdcBalanceReadFailed,
+        error.AccountNotFound => 0,
+        else => return e,
+    };
+
+    return .{
+        .address_b58 = addr_b58,
+        .ata_b58 = ata_b58,
+        .sol_lamports = sol_lamports,
+        .usdc_units = usdc_units,
+    };
+}
+
 pub fn depositUsdc(
     allocator: std.mem.Allocator,
     rpc_url: []const u8,
@@ -126,17 +176,29 @@ pub fn depositUsdc(
     const user_token_account = try deriveAssociatedTokenAddress(signer_pub, try decodePubkey(TOKEN_PROGRAM_ID), try decodePubkey(USDC_MINT), try decodePubkey(ASSOCIATED_TOKEN_PROGRAM_ID));
     const event_authority = try findProgramAddress(&.{"__event_authority"}, try decodePubkey(PROGRAM_ID));
 
-    const blockhash = try client.getLatestBlockhash();
+    const blockhash = client.getLatestBlockhash() catch |e| switch (e) {
+        error.ReadFailed => return error.BlockhashReadFailed,
+        else => return e,
+    };
     defer allocator.free(blockhash);
 
     const tx_b64 = try buildSignedDepositTransaction(allocator, signer, user_token_account, event_authority, blockhash, amount);
     defer allocator.free(tx_b64);
 
-    const simulation_units = try client.simulateTransaction(tx_b64);
-    const tx_sig = try client.sendTransaction(tx_b64);
+    const simulation_units = client.simulateTransaction(tx_b64) catch |e| switch (e) {
+        error.ReadFailed => return error.SimulateReadFailed,
+        else => return e,
+    };
+    const tx_sig = client.sendTransaction(tx_b64) catch |e| switch (e) {
+        error.ReadFailed => return error.SendReadFailed,
+        else => return e,
+    };
     errdefer allocator.free(tx_sig);
 
-    const confirmation = client.waitForConfirmation(tx_sig) catch null;
+    const confirmation = client.waitForConfirmation(tx_sig) catch |e| switch (e) {
+        error.ReadFailed => null,
+        else => null,
+    };
 
     return .{
         .signature = tx_sig,
@@ -428,7 +490,7 @@ fn bytesAreCurvePoint(bytes: [32]u8) bool {
     return true;
 }
 
-fn parseUsdcAmount(input: []const u8) !u64 {
+pub fn parseUsdcAmount(input: []const u8) !u64 {
     if (input.len == 0) return error.InvalidAmount;
     var parts = std.mem.splitScalar(u8, input, '.');
     const whole_s = parts.next().?;
@@ -474,10 +536,18 @@ const RpcClient = struct {
         req.connection.?.flush() catch return error.ConnectionFailed;
 
         var response = req.receiveHead(&.{}) catch return error.ConnectionFailed;
+
+        const decompress_buf: []u8 = switch (response.head.content_encoding) {
+            .identity => &.{},
+            .deflate, .gzip => self.allocator.alloc(u8, std.compress.flate.max_window_len) catch return error.ReadFailed,
+            .zstd => self.allocator.alloc(u8, std.compress.zstd.default_window_len) catch return error.ReadFailed,
+            .compress => return error.ReadFailed,
+        };
+        defer if (response.head.content_encoding != .identity) self.allocator.free(decompress_buf);
+
         var transfer_buf: [64]u8 = undefined;
         var decompress: std.http.Decompress = undefined;
-        var decompress_buf: [1]u8 = undefined;
-        var reader = response.readerDecompressing(&transfer_buf, &decompress, &decompress_buf);
+        var reader = response.readerDecompressing(&transfer_buf, &decompress, decompress_buf);
         return reader.allocRemaining(self.allocator, @enumFromInt(1024 * 1024)) catch return error.ReadFailed;
     }
 
@@ -485,6 +555,28 @@ const RpcClient = struct {
         const body = try self.post("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getLatestBlockhash\",\"params\":[{\"commitment\":\"confirmed\"}]}");
         defer self.allocator.free(body);
         return extractStringField(self.allocator, body, &.{ "result", "value", "blockhash" });
+    }
+
+    fn getSolBalance(self: *RpcClient, owner_b58: []const u8) !u64 {
+        var req = std.ArrayList(u8){};
+        defer req.deinit(self.allocator);
+        try req.appendSlice(self.allocator, "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getBalance\",\"params\":[\"");
+        try req.appendSlice(self.allocator, owner_b58);
+        try req.appendSlice(self.allocator, "\",{\"commitment\":\"confirmed\"}]}");
+        const body = try self.post(req.items);
+        defer self.allocator.free(body);
+        return extractU64Field(self.allocator, body, &.{ "result", "value" });
+    }
+
+    fn getTokenBalance(self: *RpcClient, token_account_b58: []const u8) !u64 {
+        var req = std.ArrayList(u8){};
+        defer req.deinit(self.allocator);
+        try req.appendSlice(self.allocator, "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getTokenAccountBalance\",\"params\":[\"");
+        try req.appendSlice(self.allocator, token_account_b58);
+        try req.appendSlice(self.allocator, "\",{\"commitment\":\"confirmed\"}]}");
+        const body = try self.post(req.items);
+        defer self.allocator.free(body);
+        return extractU64Field(self.allocator, body, &.{ "result", "value", "amount" });
     }
 
     fn findUsdcTokenAccount(self: *RpcClient, owner_b58: []const u8) ![]u8 {
@@ -617,6 +709,40 @@ fn extractStringField(allocator: std.mem.Allocator, body: []const u8, path: []co
         .string => |s| try allocator.dupe(u8, s),
         else => error.InvalidRpcResponse,
     };
+}
+
+fn extractU64Field(allocator: std.mem.Allocator, body: []const u8, path: []const []const u8) !u64 {
+    const parsed = std.json.parseFromSlice(std.json.Value, allocator, body, .{}) catch return error.InvalidRpcResponse;
+    defer parsed.deinit();
+    var cur = parsed.value;
+    for (path) |part| {
+        const obj = switch (cur) { .object => |o| o, else => return error.InvalidRpcResponse };
+        if (obj.get("error")) |e| {
+            if (isAccountNotFoundError(e)) return error.AccountNotFound;
+            return rpcErrorFromValue(e);
+        }
+        cur = obj.get(part) orelse return error.InvalidRpcResponse;
+    }
+    return switch (cur) {
+        .integer => |i| @intCast(i),
+        .string => |s| std.fmt.parseUnsigned(u64, s, 10) catch error.InvalidRpcResponse,
+        else => error.InvalidRpcResponse,
+    };
+}
+
+fn isAccountNotFoundError(value: std.json.Value) bool {
+    switch (value) {
+        .object => |obj| {
+            if (obj.get("message")) |m| {
+                return switch (m) {
+                    .string => |s| std.mem.indexOf(u8, s, "could not find account") != null,
+                    else => false,
+                };
+            }
+        },
+        else => {},
+    }
+    return false;
 }
 
 fn rpcErrorFromValue(value: std.json.Value) anyerror {
