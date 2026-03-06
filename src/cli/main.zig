@@ -9,7 +9,7 @@ const output_mod = @import("output.zig");
 const commands = @import("commands.zig");
 
 const Style = output_mod.Style;
-const VERSION = "0.0.1";
+const VERSION = "0.0.2";
 
 const EXIT_OK: u8 = 0;
 const EXIT_ERROR: u8 = 1;

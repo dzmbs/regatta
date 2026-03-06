@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v0.0.1-blue" alt="version" />
+  <img src="https://img.shields.io/badge/version-v0.0.2-blue" alt="version" />
   <img src="https://img.shields.io/badge/license-MIT-green" alt="license" />
   <img src="https://img.shields.io/badge/status-beta-orange" alt="status" />
   <img src="https://img.shields.io/badge/platform-macOS_|_Linux-blue" alt="platform" />
@@ -29,7 +29,7 @@ A Zig implementation of Pacifica tooling with one binary and one package:
 
 | Artifact | Size | What it does |
 |----------|------|--------------|
-| `regatta` | 560–711 KB | Pacifica CLI — market data, trading, account ops, keystore, Solana deposit |
+| `regatta` | ~0.6–0.7 MB | Pacifica CLI — market data, trading, account ops, keystore, Solana deposit |
 | `regatta` Zig module | small, dependency-light | SDK surface for signing, REST requests, and Solana helpers |
 
 Release binaries are stripped `ReleaseSmall` builds for macOS and Linux on x64/arm64.
@@ -317,22 +317,22 @@ tests/
 
 ## Release
 
-GitHub Releases are built automatically by Actions when you push a tag like `v0.0.1`.
+GitHub Releases are built automatically by Actions when you push a tag like `v0.0.2`.
 
 Manual local build remains available:
 
 ```bash
-./scripts/release.sh 0.0.1
+./scripts/release.sh 0.0.2
 ```
 
 This produces:
-- `dist/0.0.1/regatta-darwin-arm64`
-- `dist/0.0.1/regatta-darwin-x64`
-- `dist/0.0.1/regatta-linux-arm64`
-- `dist/0.0.1/regatta-linux-x64`
-- `dist/0.0.1/SHA256SUMS`
+- `dist/0.0.2/regatta-darwin-arm64`
+- `dist/0.0.2/regatta-darwin-x64`
+- `dist/0.0.2/regatta-linux-arm64`
+- `dist/0.0.2/regatta-linux-x64`
+- `dist/0.0.2/SHA256SUMS`
 
-Current `0.0.1` binary sizes from local release builds:
+Current `0.0.2` binary sizes from local release builds:
 - macOS arm64: ~678 KB
 - macOS x64: ~711 KB
 - Linux arm64: ~560 KB
