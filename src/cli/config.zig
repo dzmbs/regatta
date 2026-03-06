@@ -14,8 +14,10 @@ pub const Config = struct {
     key_b58: ?[]const u8 = null,
     key_name: ?[]const u8 = null,
     password: ?[]const u8 = null,
+    api_key: ?[]const u8 = null,
     address: ?[]const u8 = null,
     chain: Chain = .mainnet,
+    use_ws: bool = false,
     agent_wallet: ?[]const u8 = null,
     solana_rpc_url: ?[]const u8 = null,
     env_buf: ?[]u8 = null,
@@ -91,6 +93,7 @@ pub fn load(allocator: std.mem.Allocator, flags: args_mod.GlobalFlags) Config {
     if (getEnv("PACIFICA_KEY")) |v| config.key_b58 = v;
     if (getEnv("PACIFICA_KEY_NAME")) |v| config.key_name = v;
     if (getEnv("PACIFICA_PASSWORD")) |v| config.password = v;
+    if (getEnv("PACIFICA_API_KEY")) |v| config.api_key = v;
     if (getEnv("PACIFICA_ADDRESS")) |v| config.address = v;
     if (getEnv("PACIFICA_CHAIN")) |v| {
         if (std.mem.eql(u8, v, "testnet")) config.chain = .testnet;
@@ -102,6 +105,7 @@ pub fn load(allocator: std.mem.Allocator, flags: args_mod.GlobalFlags) Config {
     if (flags.key) |k| config.key_b58 = k;
     if (flags.key_name) |kn| config.key_name = kn;
     if (flags.address) |a| config.address = a;
+    config.use_ws = flags.ws;
     if (std.mem.eql(u8, flags.chain, "testnet")) config.chain = .testnet;
     if (flags.agent_wallet) |aw| config.agent_wallet = aw;
 
@@ -172,6 +176,8 @@ fn parseEnvBuf(buf: []const u8, config: *Config) void {
             if (config.key_name == null) config.key_name = v;
         } else if (parseEnvLine(trimmed, "PACIFICA_PASSWORD=")) |v| {
             if (config.password == null) config.password = v;
+        } else if (parseEnvLine(trimmed, "PACIFICA_API_KEY=")) |v| {
+            if (config.api_key == null) config.api_key = v;
         } else if (parseEnvLine(trimmed, "PACIFICA_ADDRESS=")) |v| {
             if (config.address == null) config.address = v;
         } else if (parseEnvLine(trimmed, "PACIFICA_CHAIN=")) |v| {

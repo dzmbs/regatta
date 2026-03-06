@@ -293,14 +293,22 @@ fn printHelp(w: *output_mod.Writer) !void {
         \\
     , .{});
 
-    try w.styled(Style.bold_white, "STREAMING");
-    try w.styled(Style.muted, " (coming — requires WebSocket)\n");
+    try w.styled(Style.bold_white, "STREAMING\n");
     try w.print(
-        \\  stream prices                    All prices (real-time)
+        \\  stream prices                    All prices
         \\  stream book <SYMBOL>             Orderbook updates
-        \\  stream trades <SYMBOL>           Trade feed
-        \\  stream positions <ADDR>          Position updates
-        \\  stream orders <ADDR>             Order updates
+        \\  stream bbo <SYMBOL>              Best bid / offer updates
+        \\  stream trades <SYMBOL>           Public trade feed
+        \\  stream candle <SYM> --interval 1m
+        \\  stream mark-candle <SYM> --interval 1m
+        \\  stream margin [ADDR]             Account margin updates
+        \\  stream leverage [ADDR]           Account leverage updates
+        \\  stream account [ADDR]            Account info updates
+        \\  stream positions [ADDR]          Position updates
+        \\  stream orders [ADDR]             Order updates
+        \\  stream account-trades [ADDR]     Account trade updates
+        \\  stream twap [ADDR]               TWAP snapshots
+        \\  stream twap-updates [ADDR]       TWAP order updates
         \\
         \\
     , .{});
@@ -367,6 +375,7 @@ fn printHelp(w: *output_mod.Writer) !void {
         \\  --key-name <NAME>         Use named keystore key
         \\  --address <BASE58>        Account address
         \\  --agent-wallet <ADDR>     Sign as agent wallet
+        \\  --ws                      Use WebSocket transport where supported
         \\
         \\
     , .{});
@@ -376,6 +385,7 @@ fn printHelp(w: *output_mod.Writer) !void {
         \\  PACIFICA_KEY              Solana keypair (base58)
         \\  PACIFICA_KEY_NAME         Named keystore key
         \\  PACIFICA_PASSWORD         Keystore password
+        \\  PACIFICA_API_KEY          Optional WebSocket API header
         \\  PACIFICA_ADDRESS          Default account address
         \\  PACIFICA_CHAIN            Default chain (mainnet|testnet)
         \\  SOLANA_RPC_URL            Solana RPC for on-chain deposit

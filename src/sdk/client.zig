@@ -115,15 +115,14 @@ pub const Client = struct {
         return self.post(path, body);
     }
 
-    pub fn signedPost(
+    pub fn buildSignedBody(
         self: *Client,
-        path: []const u8,
         signer: *const Signer,
         account_addr: ?[]const u8,
         msg_type: []const u8,
         payload: std.json.Value,
         agent_pubkey: ?[]const u8,
-    ) !Response {
+    ) ![]u8 {
         const timestamp: u64 = @intCast(std.time.milliTimestamp());
         const expiry_window: u64 = 5000;
 
@@ -162,7 +161,6 @@ pub const Client = struct {
             try body_buf.appendSlice(self.allocator, "\"");
         }
 
-        // Flatten payload fields
         switch (payload) {
             .object => |obj| {
                 var it = obj.iterator();
@@ -179,8 +177,21 @@ pub const Client = struct {
         }
 
         try body_buf.append(self.allocator, '}');
+        return body_buf.toOwnedSlice(self.allocator);
+    }
 
-        return self.post(path, body_buf.items);
+    pub fn signedPost(
+        self: *Client,
+        path: []const u8,
+        signer: *const Signer,
+        account_addr: ?[]const u8,
+        msg_type: []const u8,
+        payload: std.json.Value,
+        agent_pubkey: ?[]const u8,
+    ) !Response {
+        const body = try self.buildSignedBody(signer, account_addr, msg_type, payload, agent_pubkey);
+        defer self.allocator.free(body);
+        return self.post(path, body);
     }
 
     pub fn claimAccessCode(

@@ -197,9 +197,25 @@ pub const StreamArgs = struct {
     kind: StreamKind = .prices,
     symbol: ?[]const u8 = null,
     address: ?[]const u8 = null,
+    interval: []const u8 = "1m",
 };
 
-pub const StreamKind = enum { prices, book, trades, positions, orders };
+pub const StreamKind = enum {
+    prices,
+    orderbook,
+    bbo,
+    trades,
+    candle,
+    mark_price_candle,
+    account_margin,
+    account_leverage,
+    account_info,
+    account_positions,
+    account_order_updates,
+    account_trades,
+    account_twap_orders,
+    account_twap_order_updates,
+};
 
 pub const BatchArgs = struct {
     orders: [16]?[]const u8 = .{null} ** 16,
@@ -232,6 +248,7 @@ pub const GlobalFlags = struct {
     key_name: ?[]const u8 = null,
     address: ?[]const u8 = null,
     agent_wallet: ?[]const u8 = null,
+    ws: bool = false,
 };
 
 pub const OutputFormat = enum {
@@ -290,6 +307,8 @@ pub fn parse(allocator: std.mem.Allocator) ParseError!ParseResult {
             flags.address = args_iter.next() orelse return error.MissingArgument;
         } else if (std.mem.eql(u8, arg, "--agent-wallet")) {
             flags.agent_wallet = args_iter.next() orelse return error.MissingArgument;
+        } else if (std.mem.eql(u8, arg, "--ws")) {
+            flags.ws = true;
         } else {
             if (pos_count < positionals.len) {
                 positionals[pos_count] = arg;
@@ -737,20 +756,54 @@ fn parseAccess(args: []const []const u8) AccessArgs {
 fn parseStream(args: []const []const u8) StreamArgs {
     var result = StreamArgs{};
     if (args.len == 0) return result;
-    if (std.mem.eql(u8, args[0], "prices") or std.mem.eql(u8, args[0], "price")) {
+
+    const kind = args[0];
+    if (std.mem.eql(u8, kind, "prices") or std.mem.eql(u8, kind, "price")) {
         result.kind = .prices;
-    } else if (std.mem.eql(u8, args[0], "book") or std.mem.eql(u8, args[0], "ob")) {
-        result.kind = .book;
-        if (args.len > 1) result.symbol = args[1];
-    } else if (std.mem.eql(u8, args[0], "trades") or std.mem.eql(u8, args[0], "trade")) {
+    } else if (std.mem.eql(u8, kind, "book") or std.mem.eql(u8, kind, "orderbook") or std.mem.eql(u8, kind, "ob")) {
+        result.kind = .orderbook;
+    } else if (std.mem.eql(u8, kind, "bbo")) {
+        result.kind = .bbo;
+    } else if (std.mem.eql(u8, kind, "trades") or std.mem.eql(u8, kind, "trade")) {
         result.kind = .trades;
-        if (args.len > 1) result.symbol = args[1];
-    } else if (std.mem.eql(u8, args[0], "positions") or std.mem.eql(u8, args[0], "pos")) {
-        result.kind = .positions;
-        if (args.len > 1) result.address = args[1];
-    } else if (std.mem.eql(u8, args[0], "orders") or std.mem.eql(u8, args[0], "ord")) {
-        result.kind = .orders;
-        if (args.len > 1) result.address = args[1];
+    } else if (std.mem.eql(u8, kind, "candle") or std.mem.eql(u8, kind, "candles")) {
+        result.kind = .candle;
+    } else if (std.mem.eql(u8, kind, "mark-candle") or std.mem.eql(u8, kind, "mark-price-candle")) {
+        result.kind = .mark_price_candle;
+    } else if (std.mem.eql(u8, kind, "margin")) {
+        result.kind = .account_margin;
+    } else if (std.mem.eql(u8, kind, "leverage")) {
+        result.kind = .account_leverage;
+    } else if (std.mem.eql(u8, kind, "account") or std.mem.eql(u8, kind, "info")) {
+        result.kind = .account_info;
+    } else if (std.mem.eql(u8, kind, "positions") or std.mem.eql(u8, kind, "pos")) {
+        result.kind = .account_positions;
+    } else if (std.mem.eql(u8, kind, "orders") or std.mem.eql(u8, kind, "ord")) {
+        result.kind = .account_order_updates;
+    } else if (std.mem.eql(u8, kind, "account-trades")) {
+        result.kind = .account_trades;
+    } else if (std.mem.eql(u8, kind, "twap")) {
+        result.kind = .account_twap_orders;
+    } else if (std.mem.eql(u8, kind, "twap-updates")) {
+        result.kind = .account_twap_order_updates;
+    }
+
+    var i: usize = 1;
+    while (i < args.len) : (i += 1) {
+        const a = args[i];
+        if (std.mem.eql(u8, a, "--interval") and i + 1 < args.len) {
+            i += 1;
+            result.interval = args[i];
+        } else if (!std.mem.startsWith(u8, a, "--")) {
+            switch (result.kind) {
+                .orderbook, .bbo, .trades, .candle, .mark_price_candle => {
+                    if (result.symbol == null) result.symbol = a;
+                },
+                else => {
+                    if (result.address == null) result.address = a;
+                },
+            }
+        }
     }
     return result;
 }

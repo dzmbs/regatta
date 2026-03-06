@@ -27,6 +27,22 @@ fn doSignedPost(
     return client.signedPost(path, signer, ctx.account_addr, msg_type, payload, ctx.agent_pubkey);
 }
 
+fn doSignedWs(
+    allocator: std.mem.Allocator,
+    signer: *const lib.crypto.signer.Signer,
+    config: *Config,
+    op_name: []const u8,
+    msg_type: []const u8,
+    payload: std.json.Value,
+) !sdk.ws.ActionResult {
+    var rest_client = Client.init(allocator, config.chain);
+    defer rest_client.deinit();
+    var ws_client = try sdk.ws.Client.init(allocator, config.chain, config.api_key);
+    defer ws_client.deinit();
+    const ctx = try config.getSigningContext();
+    return ws_client.signedAction(&rest_client, op_name, signer, ctx.account_addr, msg_type, payload, ctx.agent_pubkey);
+}
+
 pub fn keysCmd(allocator: std.mem.Allocator, w: *Writer, a: args_mod.KeysArgs) !void {
     const password = a.password orelse std.posix.getenv("PACIFICA_PASSWORD") orelse {
         if (a.action == .ls) return keysLs(allocator, w);
@@ -558,6 +574,14 @@ pub fn placeOrder(allocator: std.mem.Allocator, w: *Writer, config: *Config, a: 
             return;
         }
 
+        if (config.use_ws) {
+            var res = try doSignedWs(allocator, &signer, config, "create_order", "create_order", .{ .object = payload });
+            defer res.deinit(allocator);
+            if (w.format == .json) return w.rawJson(res.body);
+            try handleSignedResponse(w, allocator, res.body, "order placed");
+            return;
+        }
+
         var resp = try doSignedPost(&client, "/orders/create", &signer, config, "create_order", .{ .object = payload });
         defer resp.deinit();
 
@@ -579,6 +603,14 @@ pub fn placeOrder(allocator: std.mem.Allocator, w: *Writer, config: *Config, a: 
             var signed = try sdk.signing.signRequest(aa, &signer, "create_market_order", .{ .object = payload }, @intCast(std.time.milliTimestamp()), 5000);
             defer signed.deinit();
             try w.print("DRY RUN — would send:\n{s}\n", .{signed.message});
+            return;
+        }
+
+        if (config.use_ws) {
+            var res = try doSignedWs(allocator, &signer, config, "create_market_order", "create_market_order", .{ .object = payload });
+            defer res.deinit(allocator);
+            if (w.format == .json) return w.rawJson(res.body);
+            try handleSignedResponse(w, allocator, res.body, "market order placed");
             return;
         }
 
@@ -605,6 +637,14 @@ pub fn cancelOrder(allocator: std.mem.Allocator, w: *Writer, config: *Config, a:
         try payload.put("exclude_reduce_only", .{ .bool = false });
         if (a.symbol) |s| try payload.put("symbol", .{ .string = s });
 
+        if (config.use_ws) {
+            var res = try doSignedWs(allocator, &signer, config, "cancel_all_orders", "cancel_all_orders", .{ .object = payload });
+            defer res.deinit(allocator);
+            if (w.format == .json) return w.rawJson(res.body);
+            try handleSignedResponse(w, allocator, res.body, "cancelled all orders");
+            return;
+        }
+
         var resp = try doSignedPost(&client, "/orders/cancel_all", &signer, config, "cancel_all_orders", .{ .object = payload });
         defer resp.deinit();
 
@@ -623,6 +663,14 @@ pub fn cancelOrder(allocator: std.mem.Allocator, w: *Writer, config: *Config, a:
         }
         if (a.client_order_id) |cloid| {
             try payload.put("client_order_id", .{ .string = cloid });
+        }
+
+        if (config.use_ws) {
+            var res = try doSignedWs(allocator, &signer, config, "cancel_order", "cancel_order", .{ .object = payload });
+            defer res.deinit(allocator);
+            if (w.format == .json) return w.rawJson(res.body);
+            try handleSignedResponse(w, allocator, res.body, "order cancelled");
+            return;
         }
 
         var resp = try doSignedPost(&client, "/orders/cancel", &signer, config, "cancel_order", .{ .object = payload });
@@ -686,6 +734,14 @@ pub fn editOrder(allocator: std.mem.Allocator, w: *Writer, config: *Config, a: a
     try payload.put("order_id", .{ .integer = order_id });
     try payload.put("price", .{ .string = a.price });
     try payload.put("amount", .{ .string = a.amount });
+
+    if (config.use_ws) {
+        var res = try doSignedWs(allocator, &signer, config, "edit_order", "edit_order", .{ .object = payload });
+        defer res.deinit(allocator);
+        if (w.format == .json) return w.rawJson(res.body);
+        try handleSignedResponse(w, allocator, res.body, "order edited");
+        return;
+    }
 
     var resp = try doSignedPost(&client, "/orders/edit", &signer, config, "edit_order", .{ .object = payload });
     defer resp.deinit();
@@ -1363,6 +1419,16 @@ pub fn batchCmd(allocator: std.mem.Allocator, w: *Writer, config: *Config, a: ar
         return error.CommandFailed;
     }
 
+    if (config.use_ws) {
+        var ws_client = try sdk.ws.Client.init(allocator, config.chain, config.api_key);
+        defer ws_client.deinit();
+        var res = try ws_client.rawAction("batch", body_buf.items);
+        defer res.deinit(allocator);
+        if (w.format == .json) return w.rawJson(res.body);
+        try handleSignedResponse(w, allocator, res.body, "batch executed");
+        return;
+    }
+
     var resp = try client.post("/orders/batch", body_buf.items);
     defer resp.deinit();
 
@@ -1502,15 +1568,55 @@ fn buildBatchBody(
 }
 
 // ╔═══════════════════════════════════════════════════════════════╗
-// ║  15. STREAMING (stub — needs WebSocket)                       ║
+// ║  15. STREAMING                                                ║
 // ╚═══════════════════════════════════════════════════════════════╝
 
 pub fn streamCmd(allocator: std.mem.Allocator, w: *Writer, config: *Config, a: args_mod.StreamArgs) !void {
-    _ = a;
-    _ = config;
-    _ = allocator;
-    try w.fail("streaming requires WebSocket client — coming in Milestone 3");
-    return error.CommandFailed;
+    var ws_client = sdk.ws.Client.init(allocator, config.chain, config.api_key) catch |e| return failFmt(w, "ws connect: {s}", .{@errorName(e)});
+    defer ws_client.deinit();
+
+    const params = try streamParams(allocator, config, a);
+    defer allocator.free(params);
+
+    ws_client.subscribe(params) catch |e| return failFmt(w, "ws subscribe: {s}", .{@errorName(e)});
+
+    var last_ping_ms: i64 = std.time.milliTimestamp();
+    while (true) {
+        if (try ws_client.nextText()) |text| {
+            defer allocator.free(text);
+            if (w.format == .json) {
+                try w.rawJson(text);
+            } else {
+                try w.print("{s}\n", .{text});
+            }
+            last_ping_ms = std.time.milliTimestamp();
+        } else {
+            const now = std.time.milliTimestamp();
+            if (now - last_ping_ms >= 30_000) {
+                ws_client.sendPing() catch |e| return failFmt(w, "ws ping: {s}", .{@errorName(e)});
+                last_ping_ms = now;
+            }
+        }
+    }
+}
+
+fn streamParams(allocator: std.mem.Allocator, config: *Config, a: args_mod.StreamArgs) ![]u8 {
+    return switch (a.kind) {
+        .prices => allocator.dupe(u8, "{\"source\":\"prices\"}"),
+        .orderbook => std.fmt.allocPrint(allocator, "{{\"source\":\"orderbook\",\"symbol\":\"{s}\"}}", .{a.symbol orelse return error.MissingArgument}),
+        .bbo => std.fmt.allocPrint(allocator, "{{\"source\":\"bbo\",\"symbol\":\"{s}\"}}", .{a.symbol orelse return error.MissingArgument}),
+        .trades => std.fmt.allocPrint(allocator, "{{\"source\":\"trades\",\"symbol\":\"{s}\"}}", .{a.symbol orelse return error.MissingArgument}),
+        .candle => std.fmt.allocPrint(allocator, "{{\"source\":\"candle\",\"symbol\":\"{s}\",\"interval\":\"{s}\"}}", .{ a.symbol orelse return error.MissingArgument, a.interval }),
+        .mark_price_candle => std.fmt.allocPrint(allocator, "{{\"source\":\"mark_price_candle\",\"symbol\":\"{s}\",\"interval\":\"{s}\"}}", .{ a.symbol orelse return error.MissingArgument, a.interval }),
+        .account_margin => std.fmt.allocPrint(allocator, "{{\"source\":\"account_margin\",\"account\":\"{s}\"}}", .{a.address orelse try config.requireAddress()}),
+        .account_leverage => std.fmt.allocPrint(allocator, "{{\"source\":\"account_leverage\",\"account\":\"{s}\"}}", .{a.address orelse try config.requireAddress()}),
+        .account_info => std.fmt.allocPrint(allocator, "{{\"source\":\"account_info\",\"account\":\"{s}\"}}", .{a.address orelse try config.requireAddress()}),
+        .account_positions => std.fmt.allocPrint(allocator, "{{\"source\":\"account_positions\",\"account\":\"{s}\"}}", .{a.address orelse try config.requireAddress()}),
+        .account_order_updates => std.fmt.allocPrint(allocator, "{{\"source\":\"account_order_updates\",\"account\":\"{s}\"}}", .{a.address orelse try config.requireAddress()}),
+        .account_trades => std.fmt.allocPrint(allocator, "{{\"source\":\"account_trades\",\"account\":\"{s}\"}}", .{a.address orelse try config.requireAddress()}),
+        .account_twap_orders => std.fmt.allocPrint(allocator, "{{\"source\":\"account_twap_orders\",\"account\":\"{s}\"}}", .{a.address orelse try config.requireAddress()}),
+        .account_twap_order_updates => std.fmt.allocPrint(allocator, "{{\"source\":\"account_twap_order_updates\",\"account\":\"{s}\"}}", .{a.address orelse try config.requireAddress()}),
+    };
 }
 
 // ╔═══════════════════════════════════════════════════════════════╗

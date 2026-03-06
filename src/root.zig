@@ -10,3 +10,4 @@ pub const signing = sdk.signing;
 pub const config = sdk.config;
 pub const client = sdk.client;
 pub const solana = sdk.solana;
+pub const ws = sdk.ws;
