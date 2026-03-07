@@ -751,34 +751,7 @@ pub fn placeOrder(allocator: std.mem.Allocator, w: *Writer, config: *Config, a: 
 
     const side_str: []const u8 = if (is_buy) "bid" else "ask";
     var resolved = resolveOrderAmount(allocator, &client, a.symbol, a.amount, a.price) catch |e| {
-        if (parseNotionalUsd(a.amount)) |_| {
-            var sizing = loadOrderSizingInfo(allocator, &client, a.symbol, a.price) catch null;
-            defer if (sizing) |*s| s.deinit(allocator);
-            if (w.format == .json) {
-                var buf: [1800]u8 = undefined;
-                const ms = w.elapsedMs();
-                const body = std.fmt.bufPrint(&buf,
-                    "{{\"v\":1,\"status\":\"error\",\"cmd\":\"{s}\",\"error\":\"CommandFailed\",\"message\":\"failed to resolve order amount\",\"data\":{{\"symbol\":\"{s}\",\"requested_amount\":\"{s}\",\"price\":\"{s}\",\"reason\":\"{s}\",\"min_order_size\":\"{s}\",\"lot_size\":\"{s}\",\"price_basis\":\"{s}\",\"price_source\":\"{s}\"}},\"timing_ms\":{d}}}",
-                    .{ if (is_buy) "buy" else "sell", a.symbol, a.amount, a.price orelse "", @errorName(e), if (sizing) |s| s.min_order_size else "", if (sizing) |s| s.lot_size else "", if (sizing) |s| s.price_basis else "", if (sizing) |s| s.basis_source else "", ms }
-                ) catch return error.Overflow;
-                try w.rawJson(body);
-                return error.CommandFailed;
-            }
-            if (sizing) |s| {
-                return failFmt(w, "failed to resolve order amount: {s} (min {s}, lot {s}, {s} {s})", .{ @errorName(e), s.min_order_size, s.lot_size, s.basis_source, s.price_basis });
-            }
-        }
-        if (w.format == .json) {
-            var buf: [1400]u8 = undefined;
-            const ms = w.elapsedMs();
-            const body = std.fmt.bufPrint(&buf,
-                "{{\"v\":1,\"status\":\"error\",\"cmd\":\"{s}\",\"error\":\"CommandFailed\",\"message\":\"failed to resolve order amount\",\"data\":{{\"symbol\":\"{s}\",\"requested_amount\":\"{s}\",\"price\":\"{s}\",\"reason\":\"{s}\"}},\"timing_ms\":{d}}}",
-                .{ if (is_buy) "buy" else "sell", a.symbol, a.amount, a.price orelse "", @errorName(e), ms }
-            ) catch return error.Overflow;
-            try w.rawJson(body);
-            return error.CommandFailed;
-        }
-        return failFmt(w, "failed to resolve order amount: {s}", .{@errorName(e)});
+        return handleOrderAmountResolutionError(allocator, w, &client, a, is_buy, e);
     };
     defer resolved.deinit(allocator);
 
@@ -798,9 +771,7 @@ pub fn placeOrder(allocator: std.mem.Allocator, w: *Writer, config: *Config, a: 
         if (a.dry_run) {
             var signed = try sdk.signing.signRequest(aa, &signer, "create_order", .{ .object = payload }, @intCast(std.time.milliTimestamp()), 5000);
             defer signed.deinit();
-            if (resolved.from_notional and w.format != .json) {
-                try w.print("Resolved {s} -> size {s} using {s} {s} (lot {s}, min {s}, effective ${s})\n", .{ resolved.notional_usd orelse a.amount, resolved.amount, resolved.basis_source orelse "price", resolved.price_basis orelse "-", resolved.lot_size orelse "-", resolved.min_order_size orelse "-", resolved.effective_notional orelse "-" });
-            }
+            try printResolvedNotionalSummary(w, resolved, a.amount);
             try w.print("DRY RUN — would send:\n{s}\n", .{signed.message});
             return;
         }
@@ -833,9 +804,7 @@ pub fn placeOrder(allocator: std.mem.Allocator, w: *Writer, config: *Config, a: 
         if (a.dry_run) {
             var signed = try sdk.signing.signRequest(aa, &signer, "create_market_order", .{ .object = payload }, @intCast(std.time.milliTimestamp()), 5000);
             defer signed.deinit();
-            if (resolved.from_notional and w.format != .json) {
-                try w.print("Resolved {s} -> size {s} using {s} {s} (lot {s}, min {s}, effective ${s})\n", .{ resolved.notional_usd orelse a.amount, resolved.amount, resolved.basis_source orelse "price", resolved.price_basis orelse "-", resolved.lot_size orelse "-", resolved.min_order_size orelse "-", resolved.effective_notional orelse "-" });
-            }
+            try printResolvedNotionalSummary(w, resolved, a.amount);
             try w.print("DRY RUN — would send:\n{s}\n", .{signed.message});
             return;
         }
@@ -2100,6 +2069,44 @@ fn streamParams(allocator: std.mem.Allocator, config: *Config, a: args_mod.Strea
 // ║  Helpers                                                      ║
 // ╚═══════════════════════════════════════════════════════════════╝
 
+fn printResolvedNotionalSummary(w: *Writer, resolved: ResolvedOrderAmount, fallback_amount: []const u8) !void {
+    if (!resolved.from_notional or w.format == .json) return;
+    try w.print("Resolved {s} -> size {s} using {s} {s} (lot {s}, min {s}, effective ${s})\n", .{ resolved.notional_usd orelse fallback_amount, resolved.amount, resolved.basis_source orelse "price", resolved.price_basis orelse "-", resolved.lot_size orelse "-", resolved.min_order_size orelse "-", resolved.effective_notional orelse "-" });
+}
+
+fn handleOrderAmountResolutionError(allocator: std.mem.Allocator, w: *Writer, client: *Client, a: args_mod.OrderArgs, is_buy: bool, e: anyerror) !void {
+    if (parseNotionalUsd(a.amount)) |_| {
+        var sizing = loadOrderSizingInfo(allocator, client, a.symbol, a.price) catch null;
+        defer if (sizing) |*s| s.deinit();
+        if (w.format == .json) {
+            var buf: [1800]u8 = undefined;
+            const ms = w.elapsedMs();
+            const body = std.fmt.bufPrint(&buf,
+                "{{\"v\":1,\"status\":\"error\",\"cmd\":\"{s}\",\"error\":\"CommandFailed\",\"message\":\"failed to resolve order amount\",\"data\":{{\"symbol\":\"{s}\",\"requested_amount\":\"{s}\",\"price\":\"{s}\",\"reason\":\"{s}\",\"min_order_size\":\"{s}\",\"lot_size\":\"{s}\",\"price_basis\":\"{s}\",\"price_source\":\"{s}\"}},\"timing_ms\":{d}}}",
+                .{ if (is_buy) "buy" else "sell", a.symbol, a.amount, a.price orelse "", @errorName(e), if (sizing) |s| s.min_order_size else "", if (sizing) |s| s.lot_size else "", if (sizing) |s| s.price_basis else "", if (sizing) |s| s.basis_source else "", ms }
+            ) catch return error.Overflow;
+            try w.rawJson(body);
+            return error.CommandFailed;
+        }
+        if (sizing) |s| {
+            try failFmt(w, "failed to resolve order amount: {s} (min {s}, lot {s}, {s} {s})", .{ @errorName(e), s.min_order_size, s.lot_size, s.basis_source, s.price_basis });
+            return error.CommandFailed;
+        }
+    }
+    if (w.format == .json) {
+        var buf: [1400]u8 = undefined;
+        const ms = w.elapsedMs();
+        const body = std.fmt.bufPrint(&buf,
+            "{{\"v\":1,\"status\":\"error\",\"cmd\":\"{s}\",\"error\":\"CommandFailed\",\"message\":\"failed to resolve order amount\",\"data\":{{\"symbol\":\"{s}\",\"requested_amount\":\"{s}\",\"price\":\"{s}\",\"reason\":\"{s}\"}},\"timing_ms\":{d}}}",
+            .{ if (is_buy) "buy" else "sell", a.symbol, a.amount, a.price orelse "", @errorName(e), ms }
+        ) catch return error.Overflow;
+        try w.rawJson(body);
+        return error.CommandFailed;
+    }
+    try failFmt(w, "failed to resolve order amount: {s}", .{@errorName(e)});
+    return error.CommandFailed;
+}
+
 fn handleSignedResponse(w: *Writer, allocator: std.mem.Allocator, body: []const u8, success_msg: []const u8) !void {
     const parsed = std.json.parseFromSlice(std.json.Value, allocator, body, .{}) catch {
         try w.fail("invalid JSON response");
@@ -2207,28 +2214,27 @@ const ResolvedOrderAmount = struct {
     lot_size: ?[]const u8 = null,
     min_order_size: ?[]const u8 = null,
     effective_notional: ?[]u8 = null,
+    sizing: ?OrderSizingInfo = null,
 
     fn deinit(self: *ResolvedOrderAmount, allocator: std.mem.Allocator) void {
         if (self.owned_amount) |s| allocator.free(s);
         if (self.effective_notional) |s| allocator.free(s);
-        if (self.price_basis) |s| allocator.free(@constCast(s));
-        if (self.basis_source) |s| allocator.free(@constCast(s));
-        if (self.lot_size) |s| allocator.free(@constCast(s));
-        if (self.min_order_size) |s| allocator.free(@constCast(s));
+        if (self.sizing) |*s| s.deinit();
     }
 };
 
 const OrderSizingInfo = struct {
+    allocator: std.mem.Allocator,
     lot_size: []u8,
     min_order_size: []u8,
     price_basis: []u8,
     basis_source: []u8,
 
-    fn deinit(self: *OrderSizingInfo, allocator: std.mem.Allocator) void {
-        allocator.free(self.lot_size);
-        allocator.free(self.min_order_size);
-        allocator.free(self.price_basis);
-        allocator.free(self.basis_source);
+    fn deinit(self: *OrderSizingInfo) void {
+        self.allocator.free(self.lot_size);
+        self.allocator.free(self.min_order_size);
+        self.allocator.free(self.price_basis);
+        self.allocator.free(self.basis_source);
     }
 };
 
@@ -2255,6 +2261,7 @@ fn loadOrderSizingInfo(allocator: std.mem.Allocator, client: *Client, symbol: []
     const basis_source: []const u8 = if (explicit_price != null) "limit_price" else if (!std.mem.eql(u8, jsonStr(price_data.obj, "mark"), "-")) "mark" else if (!std.mem.eql(u8, jsonStr(price_data.obj, "mid"), "-")) "mid" else "oracle";
 
     return .{
+        .allocator = allocator,
         .lot_size = try allocator.dupe(u8, jsonStr(market.obj, "lot_size")),
         .min_order_size = try allocator.dupe(u8, jsonStr(market.obj, "min_order_size")),
         .price_basis = try allocator.dupe(u8, basis_price),
@@ -2265,8 +2272,7 @@ fn loadOrderSizingInfo(allocator: std.mem.Allocator, client: *Client, symbol: []
 fn resolveOrderAmount(allocator: std.mem.Allocator, client: *Client, symbol: []const u8, raw_amount: []const u8, explicit_price: ?[]const u8) !ResolvedOrderAmount {
     const parsed = parseNotionalUsd(raw_amount) orelse return .{ .amount = raw_amount };
 
-    var sizing = try loadOrderSizingInfo(allocator, client, symbol, explicit_price);
-    errdefer sizing.deinit(allocator);
+    const sizing = try loadOrderSizingInfo(allocator, client, symbol, explicit_price);
 
     const usd = try std.fmt.parseFloat(f64, parsed);
     const px = try std.fmt.parseFloat(f64, sizing.price_basis);
@@ -2295,6 +2301,7 @@ fn resolveOrderAmount(allocator: std.mem.Allocator, client: *Client, symbol: []c
         .lot_size = sizing.lot_size,
         .min_order_size = sizing.min_order_size,
         .effective_notional = effective_notional,
+        .sizing = sizing,
     };
 }
 

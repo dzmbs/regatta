@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v0.0.10-blue" alt="version" />
+  <img src="https://img.shields.io/badge/version-v0.0.11-blue" alt="version" />
   <img src="https://img.shields.io/badge/license-MIT-green" alt="license" />
   <img src="https://img.shields.io/badge/status-beta-orange" alt="status" />
   <img src="https://img.shields.io/badge/platform-macOS_|_Linux-blue" alt="platform" />
@@ -327,22 +327,22 @@ tests/
 
 ## Release
 
-GitHub Releases are built automatically by Actions when you push a tag like `v0.0.10`.
+GitHub Releases are built automatically by Actions when you push a tag like `v0.0.11`.
 
 Manual local build remains available:
 
 ```bash
-./scripts/release.sh 0.0.10
+./scripts/release.sh 0.0.11
 ```
 
 This produces:
-- `dist/0.0.10/regatta-darwin-arm64`
-- `dist/0.0.10/regatta-darwin-x64`
-- `dist/0.0.10/regatta-linux-arm64`
-- `dist/0.0.10/regatta-linux-x64`
-- `dist/0.0.10/SHA256SUMS`
+- `dist/0.0.11/regatta-darwin-arm64`
+- `dist/0.0.11/regatta-darwin-x64`
+- `dist/0.0.11/regatta-linux-arm64`
+- `dist/0.0.11/regatta-linux-x64`
+- `dist/0.0.11/SHA256SUMS`
 
-Current `0.0.10` binary sizes from local release builds:
+Current `0.0.11` binary sizes from local release builds:
 - macOS arm64: ~678 KB
 - macOS x64: ~711 KB
 - Linux arm64: ~560 KB
