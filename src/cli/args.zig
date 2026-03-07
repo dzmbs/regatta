@@ -25,6 +25,7 @@ pub const Command = union(enum) {
     leverage: LeverageArgs,
     margin: MarginArgs,
     deposit: DepositArgs,
+    transfer: TransferArgs,
     withdraw: WithdrawArgs,
     stop: StopArgs,
     tpsl: TpSlArgs,
@@ -106,6 +107,14 @@ pub const MarginArgs = struct {
 pub const DepositArgs = struct {
     network: []const u8 = "solana",
     amount: ?[]const u8 = null,
+    rpc_url: ?[]const u8 = null,
+};
+
+pub const TransferArgs = struct {
+    network: []const u8 = "solana",
+    asset: ?[]const u8 = null,
+    amount: ?[]const u8 = null,
+    to: ?[]const u8 = null,
     rpc_url: ?[]const u8 = null,
 };
 
@@ -362,6 +371,8 @@ pub fn parse(allocator: std.mem.Allocator) ParseError!ParseResult {
         .{ .margin = parseMargin(rest) orelse return error.MissingArgument }
     else if (std.mem.eql(u8, cmd_str, "deposit"))
         .{ .deposit = parseDeposit(rest) orelse return error.MissingArgument }
+    else if (std.mem.eql(u8, cmd_str, "transfer"))
+        .{ .transfer = parseTransfer(rest) orelse return error.MissingArgument }
     else if (std.mem.eql(u8, cmd_str, "withdraw"))
         .{ .withdraw = .{ .amount = if (rest.len > 0) rest[0] else return error.MissingArgument } }
     else if (std.mem.eql(u8, cmd_str, "stop"))
@@ -534,6 +545,24 @@ fn parseDeposit(args: []const []const u8) ?DepositArgs {
     if (args.len < 2) return null;
     var result = DepositArgs{ .network = args[0], .amount = args[1] };
     var i: usize = 2;
+    while (i < args.len) : (i += 1) {
+        if (std.mem.eql(u8, args[i], "--rpc") and i + 1 < args.len) {
+            i += 1;
+            result.rpc_url = args[i];
+        }
+    }
+    return result;
+}
+
+fn parseTransfer(args: []const []const u8) ?TransferArgs {
+    if (args.len < 4) return null;
+    var result = TransferArgs{
+        .network = args[0],
+        .asset = args[1],
+        .amount = args[2],
+        .to = args[3],
+    };
+    var i: usize = 4;
     while (i < args.len) : (i += 1) {
         if (std.mem.eql(u8, args[i], "--rpc") and i + 1 < args.len) {
             i += 1;

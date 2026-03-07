@@ -9,7 +9,7 @@ const output_mod = @import("output.zig");
 const commands = @import("commands.zig");
 
 const Style = output_mod.Style;
-const VERSION = "0.0.5";
+const VERSION = "0.0.6";
 
 const EXIT_OK: u8 = 0;
 const EXIT_ERROR: u8 = 1;
@@ -105,6 +105,7 @@ pub fn main() void {
         .edit => |a| commands.editOrder(allocator, &w, &config, a) catch |e| exit(&w, cmd_name, e),
         .margin => |a| commands.marginCmd(allocator, &w, &config, a) catch |e| exit(&w, cmd_name, e),
         .deposit => |a| commands.depositCmd(allocator, &w, &config, a) catch |e| exit(&w, cmd_name, e),
+        .transfer => |a| commands.transferCmd(allocator, &w, &config, a) catch |e| exit(&w, cmd_name, e),
         .withdraw => |a| commands.withdrawCmd(allocator, &w, &config, a) catch |e| exit(&w, cmd_name, e),
         .stop => |a| commands.stopCmd(allocator, &w, &config, a) catch |e| exit(&w, cmd_name, e),
         .tpsl => |a| commands.tpslCmd(allocator, &w, &config, a) catch |e| exit(&w, cmd_name, e),
@@ -267,6 +268,8 @@ fn printHelp(w: *output_mod.Writer) !void {
         \\  leverage <SYM> [N]                Query or set leverage
         \\  margin <SYM> --isolated|--cross   Set margin mode
         \\  deposit solana <AMOUNT> [--rpc URL]
+        \\  transfer solana sol <AMOUNT> <TO> [--rpc URL]
+        \\  transfer solana usdc <AMOUNT> <TO> [--rpc URL]  (creates recipient ATA if needed)
         \\  stop <SYM> --side long --stop-price P [--limit-price P]
         \\  tpsl <SYM> <SIDE> --tp P --sl P   Set TP/SL on position
         \\
@@ -411,6 +414,8 @@ fn printHelp(w: *output_mod.Writer) !void {
         \\  regatta buy BTC 0.1 @100000                 Limit buy
         \\  regatta sell ETH 1.0                        Market sell
         \\  regatta deposit solana 10                   Deposit 10 USDC on Solana (minimum)
+        \\  regatta transfer solana sol 0.1 <ADDR>      Send 0.1 SOL on Solana
+        \\  regatta transfer solana usdc 5 <ADDR>       Send 5 USDC on Solana
         \\  regatta cancel BTC --all                    Cancel all BTC orders
         \\  regatta positions --json | jq '.data'       Pipe to jq
         \\  regatta buy BTC 0.1 @95000 --dry-run        Preview order

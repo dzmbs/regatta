@@ -69,6 +69,16 @@ pub const DepositPreflight = struct {
     }
 };
 
+pub const TransferResult = struct {
+    signature: []u8,
+    confirmation_status: ?[]u8,
+
+    pub fn deinit(self: *TransferResult, allocator: std.mem.Allocator) void {
+        allocator.free(self.signature);
+        if (self.confirmation_status) |s| allocator.free(s);
+    }
+};
+
 pub const DepositDebug = struct {
     ata_b58: []u8,
     event_authority_b58: []u8,
@@ -161,6 +171,76 @@ pub fn depositPreflight(
     };
 }
 
+pub fn transferSol(
+    allocator: std.mem.Allocator,
+    rpc_url: []const u8,
+    signer: *const Signer,
+    amount_str: []const u8,
+    to_b58: []const u8,
+) !TransferResult {
+    const lamports = try parseSolAmount(amount_str);
+    const to_pub = try decodePubkey(to_b58);
+
+    var client = RpcClient.init(allocator, rpc_url);
+    defer client.deinit();
+
+    const signer_pub = signer.pubkeyBytes();
+    const blockhash = client.getLatestBlockhash() catch |e| switch (e) {
+        error.ReadFailed => return error.BlockhashReadFailed,
+        else => return e,
+    };
+    defer allocator.free(blockhash);
+
+    const tx_b64 = try buildSignedSolTransferTransaction(allocator, signer, signer_pub, to_pub, blockhash, lamports);
+    defer allocator.free(tx_b64);
+
+    const tx_sig = client.sendTransaction(tx_b64) catch |e| switch (e) {
+        error.ReadFailed => return error.SendReadFailed,
+        else => return e,
+    };
+    errdefer allocator.free(tx_sig);
+
+    const confirmation = client.waitForConfirmation(tx_sig) catch null;
+    return .{ .signature = tx_sig, .confirmation_status = confirmation };
+}
+
+pub fn transferUsdc(
+    allocator: std.mem.Allocator,
+    rpc_url: []const u8,
+    signer: *const Signer,
+    amount_str: []const u8,
+    to_b58: []const u8,
+) !TransferResult {
+    const amount = try parseUsdcAmount(amount_str);
+    const to_pub = try decodePubkey(to_b58);
+
+    var client = RpcClient.init(allocator, rpc_url);
+    defer client.deinit();
+
+    const signer_pub = signer.pubkeyBytes();
+    const sender_ata = try deriveAssociatedTokenAddress(signer_pub, try decodePubkey(TOKEN_PROGRAM_ID), try decodePubkey(USDC_MINT), try decodePubkey(ASSOCIATED_TOKEN_PROGRAM_ID));
+    const recipient_ata = try deriveAssociatedTokenAddress(to_pub, try decodePubkey(TOKEN_PROGRAM_ID), try decodePubkey(USDC_MINT), try decodePubkey(ASSOCIATED_TOKEN_PROGRAM_ID));
+    const recipient_ata_exists = client.accountExistsBase58(recipient_ata) catch false;
+
+    const blockhash = client.getLatestBlockhash() catch |e| switch (e) {
+        error.ReadFailed => return error.BlockhashReadFailed,
+        else => return e,
+    };
+    defer allocator.free(blockhash);
+
+    const tx_b64 = try buildSignedUsdcTransferTransaction(allocator, signer, signer_pub, to_pub, sender_ata, recipient_ata, recipient_ata_exists, blockhash, amount);
+    defer allocator.free(tx_b64);
+
+    const tx_sig = client.sendTransaction(tx_b64) catch |e| switch (e) {
+        error.ReadFailed => return error.SendReadFailed,
+        else => return e,
+    };
+    errdefer allocator.free(tx_sig);
+
+    const confirmation = client.waitForConfirmation(tx_sig) catch null;
+    return .{ .signature = tx_sig, .confirmation_status = confirmation };
+}
+
 pub fn depositUsdc(
     allocator: std.mem.Allocator,
     rpc_url: []const u8,
@@ -205,6 +285,113 @@ pub fn depositUsdc(
         .confirmation_status = confirmation,
         .simulation_units_consumed = simulation_units,
     };
+}
+
+fn buildSignedSolTransferTransaction(
+    allocator: std.mem.Allocator,
+    signer: *const Signer,
+    from_pub: [32]u8,
+    to_pub: [32]u8,
+    blockhash_b58: []const u8,
+    lamports: u64,
+) ![]u8 {
+    const sys_program = try decodePubkey(SYS_PROGRAM_ID);
+    const blockhash = try decodePubkey(blockhash_b58);
+
+    var transfer_data: [12]u8 = undefined;
+    std.mem.writeInt(u32, transfer_data[0..4], 2, .little);
+    std.mem.writeInt(u64, transfer_data[4..12], lamports, .little);
+
+    const accounts = [_]AccountMeta{
+        .{ .pubkey = from_pub, .is_signer = true, .is_writable = true },
+        .{ .pubkey = to_pub, .is_signer = false, .is_writable = true },
+    };
+    const instructions = [_]InstructionSpec{
+        .{ .program_id = sys_program, .accounts = &accounts, .data = &transfer_data },
+    };
+
+    const msg_bytes = try compileLegacyMessage(allocator, from_pub, &instructions, blockhash, .sorted);
+    defer allocator.free(msg_bytes);
+
+    const sig = signer.sign(msg_bytes);
+    var tx = std.ArrayList(u8){};
+    defer tx.deinit(allocator);
+    try writeShortVec(&tx, allocator, 1);
+    try tx.appendSlice(allocator, &sig);
+    try tx.appendSlice(allocator, msg_bytes);
+
+    const enc = std.base64.standard.Encoder;
+    const out_len = enc.calcSize(tx.items.len);
+    const out = try allocator.alloc(u8, out_len);
+    _ = enc.encode(out, tx.items);
+    return out;
+}
+
+fn buildSignedUsdcTransferTransaction(
+    allocator: std.mem.Allocator,
+    signer: *const Signer,
+    payer_pub: [32]u8,
+    owner_pub: [32]u8,
+    sender_ata: [32]u8,
+    recipient_ata: [32]u8,
+    recipient_ata_exists: bool,
+    blockhash_b58: []const u8,
+    amount: u64,
+) ![]u8 {
+    const token_program = try decodePubkey(TOKEN_PROGRAM_ID);
+    const associated_token_program = try decodePubkey(ASSOCIATED_TOKEN_PROGRAM_ID);
+    const usdc_mint = try decodePubkey(USDC_MINT);
+    const sys_program = try decodePubkey(SYS_PROGRAM_ID);
+    const blockhash = try decodePubkey(blockhash_b58);
+
+    var create_ata_data = [_]u8{1}; // create idempotent
+    var transfer_data: [10]u8 = undefined;
+    transfer_data[0] = 12; // TransferChecked
+    std.mem.writeInt(u64, transfer_data[1..9], amount, .little);
+    transfer_data[9] = 6; // USDC decimals
+
+    const create_ata_accounts = [_]AccountMeta{
+        .{ .pubkey = payer_pub, .is_signer = true, .is_writable = true },
+        .{ .pubkey = recipient_ata, .is_signer = false, .is_writable = true },
+        .{ .pubkey = owner_pub, .is_signer = false, .is_writable = false },
+        .{ .pubkey = usdc_mint, .is_signer = false, .is_writable = false },
+        .{ .pubkey = sys_program, .is_signer = false, .is_writable = false },
+        .{ .pubkey = token_program, .is_signer = false, .is_writable = false },
+    };
+    const transfer_accounts = [_]AccountMeta{
+        .{ .pubkey = sender_ata, .is_signer = false, .is_writable = true },
+        .{ .pubkey = usdc_mint, .is_signer = false, .is_writable = false },
+        .{ .pubkey = recipient_ata, .is_signer = false, .is_writable = true },
+        .{ .pubkey = payer_pub, .is_signer = true, .is_writable = false },
+    };
+
+    var msg_bytes: []u8 = undefined;
+    if (recipient_ata_exists) {
+        const instructions = [_]InstructionSpec{
+            .{ .program_id = token_program, .accounts = &transfer_accounts, .data = &transfer_data },
+        };
+        msg_bytes = try compileLegacyMessage(allocator, payer_pub, &instructions, blockhash, .sorted);
+    } else {
+        const instructions = [_]InstructionSpec{
+            .{ .program_id = associated_token_program, .accounts = &create_ata_accounts, .data = &create_ata_data },
+            .{ .program_id = token_program, .accounts = &transfer_accounts, .data = &transfer_data },
+        };
+        msg_bytes = try compileLegacyMessage(allocator, payer_pub, &instructions, blockhash, .sorted);
+    }
+    defer allocator.free(msg_bytes);
+
+    const sig = signer.sign(msg_bytes);
+    var tx = std.ArrayList(u8){};
+    defer tx.deinit(allocator);
+    try writeShortVec(&tx, allocator, 1);
+    try tx.appendSlice(allocator, &sig);
+    try tx.appendSlice(allocator, msg_bytes);
+
+    const enc = std.base64.standard.Encoder;
+    const out_len = enc.calcSize(tx.items.len);
+    const out = try allocator.alloc(u8, out_len);
+    _ = enc.encode(out, tx.items);
+    return out;
 }
 
 fn buildSignedDepositTransaction(
@@ -490,23 +677,32 @@ fn bytesAreCurvePoint(bytes: [32]u8) bool {
     return true;
 }
 
-pub fn parseUsdcAmount(input: []const u8) !u64 {
+fn parseDecimalAmount(input: []const u8, decimals: usize) !u64 {
     if (input.len == 0) return error.InvalidAmount;
     var parts = std.mem.splitScalar(u8, input, '.');
     const whole_s = parts.next().?;
     const frac_s = parts.next() orelse "";
     if (parts.next() != null) return error.InvalidAmount;
-    if (frac_s.len > 6) return error.InvalidAmount;
+    if (frac_s.len > decimals) return error.InvalidAmount;
 
     const whole = try std.fmt.parseUnsigned(u64, whole_s, 10);
     var frac: u64 = 0;
     if (frac_s.len > 0) {
         frac = try std.fmt.parseUnsigned(u64, frac_s, 10);
         var i: usize = frac_s.len;
-        while (i < 6) : (i += 1) frac *= 10;
+        while (i < decimals) : (i += 1) frac *= 10;
     }
 
-    return try std.math.add(u64, try std.math.mul(u64, whole, 1_000_000), frac);
+    const scale = try std.math.powi(u64, 10, @intCast(decimals));
+    return try std.math.add(u64, try std.math.mul(u64, whole, scale), frac);
+}
+
+pub fn parseUsdcAmount(input: []const u8) !u64 {
+    return parseDecimalAmount(input, 6);
+}
+
+pub fn parseSolAmount(input: []const u8) !u64 {
+    return parseDecimalAmount(input, 9);
 }
 
 const RpcClient = struct {
@@ -577,6 +773,30 @@ const RpcClient = struct {
         const body = try self.post(req.items);
         defer self.allocator.free(body);
         return extractU64Field(self.allocator, body, &.{ "result", "value", "amount" });
+    }
+
+    fn accountExistsBase58(self: *RpcClient, pubkey: [32]u8) !bool {
+        var buf: [64]u8 = undefined;
+        return self.accountExists(base58.encode(&buf, &pubkey));
+    }
+
+    fn accountExists(self: *RpcClient, pubkey_b58: []const u8) !bool {
+        var req = std.ArrayList(u8){};
+        defer req.deinit(self.allocator);
+        try req.appendSlice(self.allocator, "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getAccountInfo\",\"params\":[\"");
+        try req.appendSlice(self.allocator, pubkey_b58);
+        try req.appendSlice(self.allocator, "\",{\"encoding\":\"base64\",\"commitment\":\"confirmed\"}]}");
+        const body = try self.post(req.items);
+        defer self.allocator.free(body);
+
+        const parsed = std.json.parseFromSlice(std.json.Value, self.allocator, body, .{}) catch return error.InvalidRpcResponse;
+        defer parsed.deinit();
+        const root = parsed.value.object;
+        if (root.get("error")) |e| return rpcErrorFromValue(e);
+        const result = root.get("result") orelse return error.InvalidRpcResponse;
+        const result_obj = switch (result) { .object => |o| o, else => return error.InvalidRpcResponse };
+        const value = result_obj.get("value") orelse return error.InvalidRpcResponse;
+        return value != .null;
     }
 
     fn findUsdcTokenAccount(self: *RpcClient, owner_b58: []const u8) ![]u8 {

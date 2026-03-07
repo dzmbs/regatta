@@ -1130,6 +1130,141 @@ pub fn depositCmd(allocator: std.mem.Allocator, w: *Writer, config: *Config, a: 
     try w.footer();
 }
 
+pub fn transferCmd(allocator: std.mem.Allocator, w: *Writer, config: *Config, a: args_mod.TransferArgs) !void {
+    if (!std.mem.eql(u8, a.network, "solana")) {
+        try w.fail("only `transfer solana` is supported");
+        return error.CommandFailed;
+    }
+
+    const asset = a.asset orelse return error.MissingArgument;
+    const amount = a.amount orelse return error.MissingArgument;
+    const to = a.to orelse return error.MissingArgument;
+    const rpc_url = a.rpc_url orelse config.getSolanaRpcUrl();
+    const signer = config.getSigner() catch return error.MissingKey;
+
+    var preflight = sdk.solana.depositPreflight(allocator, rpc_url, &signer) catch |e| {
+        if (w.format == .json) {
+            var buf: [1024]u8 = undefined;
+            const ms = w.elapsedMs();
+            const body = std.fmt.bufPrint(&buf,
+                "{{\"v\":1,\"status\":\"error\",\"cmd\":\"transfer\",\"error\":\"CommandFailed\",\"message\":\"transfer preflight failed\",\"data\":{{\"asset\":\"{s}\",\"amount\":\"{s}\",\"to\":\"{s}\",\"rpc\":\"{s}\",\"reason\":\"{s}\"}},\"timing_ms\":{d}}}",
+                .{ asset, amount, to, rpc_url, @errorName(e), ms }
+            ) catch return error.Overflow;
+            try w.rawJson(body);
+            return error.CommandFailed;
+        }
+        return failFmt(w, "transfer preflight failed: {s}", .{@errorName(e)});
+    };
+    defer preflight.deinit(allocator);
+
+    if (std.mem.eql(u8, asset, "sol") or std.mem.eql(u8, asset, "SOL")) {
+        const lamports = sdk.solana.parseSolAmount(amount) catch return error.InvalidFlag;
+        if (preflight.sol_lamports <= lamports) {
+            if (w.format == .json) {
+                var buf: [1400]u8 = undefined;
+                const ms = w.elapsedMs();
+                const body = std.fmt.bufPrint(&buf,
+                    "{{\"v\":1,\"status\":\"error\",\"cmd\":\"transfer\",\"error\":\"CommandFailed\",\"message\":\"insufficient SOL balance for transfer amount\",\"data\":{{\"asset\":\"SOL\",\"amount\":\"{s}\",\"lamports\":{d},\"to\":\"{s}\",\"rpc\":\"{s}\",\"address\":\"{s}\",\"sol_lamports\":{d}}},\"timing_ms\":{d}}}",
+                    .{ amount, lamports, to, rpc_url, preflight.address_b58, preflight.sol_lamports, ms }
+                ) catch return error.Overflow;
+                try w.rawJson(body);
+                return error.CommandFailed;
+            }
+            try w.fail("insufficient SOL balance for transfer amount");
+            return error.CommandFailed;
+        }
+
+        var result = sdk.solana.transferSol(allocator, rpc_url, &signer, amount, to) catch |e| {
+            if (w.format == .json) {
+                var buf: [1024]u8 = undefined;
+                const ms = w.elapsedMs();
+                const body = std.fmt.bufPrint(&buf,
+                    "{{\"v\":1,\"status\":\"error\",\"cmd\":\"transfer\",\"error\":\"CommandFailed\",\"message\":\"SOL transfer failed\",\"data\":{{\"asset\":\"SOL\",\"amount\":\"{s}\",\"to\":\"{s}\",\"rpc\":\"{s}\",\"reason\":\"{s}\"}},\"timing_ms\":{d}}}",
+                    .{ amount, to, rpc_url, @errorName(e), ms }
+                ) catch return error.Overflow;
+                try w.rawJson(body);
+                return error.CommandFailed;
+            }
+            return failFmt(w, "SOL transfer failed: {s}", .{@errorName(e)});
+        };
+        defer result.deinit(allocator);
+
+        if (w.format == .json) {
+            var buf: [1024]u8 = undefined;
+            const body = std.fmt.bufPrint(&buf,
+                "{{\"asset\":\"SOL\",\"amount\":\"{s}\",\"to\":\"{s}\",\"rpc\":\"{s}\",\"signature\":\"{s}\",\"confirmation_status\":\"{s}\"}}",
+                .{ amount, to, rpc_url, result.signature, result.confirmation_status orelse "submitted" }
+            ) catch return error.Overflow;
+            try w.jsonRaw(body);
+            return;
+        }
+
+        try w.success("SOL transfer submitted");
+        try w.kv("Amount", amount);
+        try w.kv("To", to);
+        try w.kv("RPC", rpc_url);
+        try w.kv("Signature", result.signature);
+        try w.kv("Status", result.confirmation_status orelse "submitted");
+        try w.footer();
+        return;
+    }
+
+    if (std.mem.eql(u8, asset, "usdc") or std.mem.eql(u8, asset, "USDC")) {
+        const amount_units = sdk.solana.parseUsdcAmount(amount) catch return error.InvalidFlag;
+        if (preflight.usdc_units < amount_units) {
+            if (w.format == .json) {
+                var buf: [1600]u8 = undefined;
+                const ms = w.elapsedMs();
+                const body = std.fmt.bufPrint(&buf,
+                    "{{\"v\":1,\"status\":\"error\",\"cmd\":\"transfer\",\"error\":\"CommandFailed\",\"message\":\"insufficient USDC balance for transfer amount\",\"data\":{{\"asset\":\"USDC\",\"amount\":\"{s}\",\"units\":{d},\"to\":\"{s}\",\"rpc\":\"{s}\",\"address\":\"{s}\",\"usdc_ata\":\"{s}\",\"usdc_units\":{d},\"sol_lamports\":{d}}},\"timing_ms\":{d}}}",
+                    .{ amount, amount_units, to, rpc_url, preflight.address_b58, preflight.ata_b58, preflight.usdc_units, preflight.sol_lamports, ms }
+                ) catch return error.Overflow;
+                try w.rawJson(body);
+                return error.CommandFailed;
+            }
+            try w.fail("insufficient USDC balance for transfer amount");
+            return error.CommandFailed;
+        }
+
+        var result = sdk.solana.transferUsdc(allocator, rpc_url, &signer, amount, to) catch |e| {
+            if (w.format == .json) {
+                var buf: [1024]u8 = undefined;
+                const ms = w.elapsedMs();
+                const body = std.fmt.bufPrint(&buf,
+                    "{{\"v\":1,\"status\":\"error\",\"cmd\":\"transfer\",\"error\":\"CommandFailed\",\"message\":\"USDC transfer failed\",\"data\":{{\"asset\":\"USDC\",\"amount\":\"{s}\",\"to\":\"{s}\",\"rpc\":\"{s}\",\"reason\":\"{s}\"}},\"timing_ms\":{d}}}",
+                    .{ amount, to, rpc_url, @errorName(e), ms }
+                ) catch return error.Overflow;
+                try w.rawJson(body);
+                return error.CommandFailed;
+            }
+            return failFmt(w, "USDC transfer failed: {s}", .{@errorName(e)});
+        };
+        defer result.deinit(allocator);
+
+        if (w.format == .json) {
+            var buf: [1024]u8 = undefined;
+            const body = std.fmt.bufPrint(&buf,
+                "{{\"asset\":\"USDC\",\"amount\":\"{s}\",\"to\":\"{s}\",\"rpc\":\"{s}\",\"signature\":\"{s}\",\"confirmation_status\":\"{s}\"}}",
+                .{ amount, to, rpc_url, result.signature, result.confirmation_status orelse "submitted" }
+            ) catch return error.Overflow;
+            try w.jsonRaw(body);
+            return;
+        }
+
+        try w.success("USDC transfer submitted");
+        try w.kv("Amount", amount);
+        try w.kv("To", to);
+        try w.kv("RPC", rpc_url);
+        try w.kv("Signature", result.signature);
+        try w.kv("Status", result.confirmation_status orelse "submitted");
+        try w.footer();
+        return;
+    }
+
+    try w.fail("supported transfer assets: sol, usdc");
+    return error.CommandFailed;
+}
+
 pub fn accessCmd(allocator: std.mem.Allocator, w: *Writer, config: *Config, a: args_mod.AccessArgs) !void {
     var client = Client.init(allocator, config.chain);
     defer client.deinit();
