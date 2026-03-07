@@ -21,6 +21,10 @@ pub const Client = struct {
     allocator: std.mem.Allocator,
     inner: websocket.Client,
 
+    pub fn socketFd(self: *Client) std.posix.fd_t {
+        return self.inner.stream.stream.handle;
+    }
+
     pub fn init(allocator: std.mem.Allocator, chain: Chain, api_key: ?[]const u8) !Client {
         const spec = try parseWsSpec(chain.wsUrl());
         var inner = try websocket.Client.init(allocator, .{

@@ -14,6 +14,10 @@ const Writer = output_mod.Writer;
 const Style = output_mod.Style;
 const Column = output_mod.Column;
 const Config = config_mod.Config;
+const posix = std.posix;
+
+var stream_shutdown: std.atomic.Value(bool) = std.atomic.Value(bool).init(false);
+var stream_socket_fd: std.atomic.Value(std.posix.fd_t) = std.atomic.Value(std.posix.fd_t).init(-1);
 
 fn doSignedPost(
     client: *Client,
@@ -342,6 +346,21 @@ pub fn account(allocator: std.mem.Allocator, w: *Writer, config: *Config, a: arg
 
     var resp = try client.getAccountInfo(addr);
     defer resp.deinit();
+
+    if (resp.status == .not_found) {
+        if (w.format == .json) {
+            var buf: [512]u8 = undefined;
+            const body = std.fmt.bufPrint(&buf, "{{\"initialized\":false,\"address\":\"{s}\",\"message\":\"account not initialized yet\"}}", .{addr}) catch return error.Overflow;
+            try w.jsonRaw(body);
+            return;
+        }
+        try w.heading("Account");
+        try w.kv("Address", addr);
+        try w.kv("Initialized", "no");
+        try w.kv("Status", "account not initialized yet");
+        try w.footer();
+        return;
+    }
 
     if (w.format == .json) return checkJsonResponse(w, resp.body);
 
@@ -1662,8 +1681,27 @@ pub fn streamCmd(allocator: std.mem.Allocator, w: *Writer, config: *Config, a: a
 
     ws_client.subscribe(params) catch |e| return failFmt(w, "ws subscribe: {s}", .{@errorName(e)});
 
+    stream_shutdown.store(false, .release);
+    stream_socket_fd.store(ws_client.socketFd(), .release);
+    const S = struct {
+        fn handler(_: c_int) callconv(.c) void {
+            stream_shutdown.store(true, .release);
+            const fd = stream_socket_fd.load(.acquire);
+            if (fd != -1) {
+                _ = std.c.shutdown(fd, 2);
+            }
+        }
+    };
+    const act = posix.Sigaction{
+        .handler = .{ .handler = S.handler },
+        .mask = std.mem.zeroes(posix.sigset_t),
+        .flags = 0,
+    };
+    posix.sigaction(posix.SIG.INT, &act, null);
+    posix.sigaction(posix.SIG.TERM, &act, null);
+
     var last_ping_ms: i64 = std.time.milliTimestamp();
-    while (true) {
+    while (!stream_shutdown.load(.acquire)) {
         const maybe_text = ws_client.nextText() catch |e| switch (e) {
             error.Closed => return,
             else => return failFmt(w, "ws read: {s}", .{@errorName(e)}),

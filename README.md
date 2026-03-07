@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v0.0.4-blue" alt="version" />
+  <img src="https://img.shields.io/badge/version-v0.0.5-blue" alt="version" />
   <img src="https://img.shields.io/badge/license-MIT-green" alt="license" />
   <img src="https://img.shields.io/badge/status-beta-orange" alt="status" />
   <img src="https://img.shields.io/badge/platform-macOS_|_Linux-blue" alt="platform" />
@@ -182,7 +182,7 @@ Convenience exports include:
 
 | Command | Description |
 |---------|-------------|
-| `regatta account [ADDR]` | Account info |
+| `regatta account [ADDR]` | Account info (friendly zero-state for uninitialized accounts) |
 | `regatta positions [ADDR]` | Open positions |
 | `regatta orders [ADDR]` | Open orders |
 | `regatta history [ADDR]` | Order history |
@@ -317,22 +317,22 @@ tests/
 
 ## Release
 
-GitHub Releases are built automatically by Actions when you push a tag like `v0.0.4`.
+GitHub Releases are built automatically by Actions when you push a tag like `v0.0.5`.
 
 Manual local build remains available:
 
 ```bash
-./scripts/release.sh 0.0.4
+./scripts/release.sh 0.0.5
 ```
 
 This produces:
-- `dist/0.0.4/regatta-darwin-arm64`
-- `dist/0.0.4/regatta-darwin-x64`
-- `dist/0.0.4/regatta-linux-arm64`
-- `dist/0.0.4/regatta-linux-x64`
-- `dist/0.0.4/SHA256SUMS`
+- `dist/0.0.5/regatta-darwin-arm64`
+- `dist/0.0.5/regatta-darwin-x64`
+- `dist/0.0.5/regatta-linux-arm64`
+- `dist/0.0.5/regatta-linux-x64`
+- `dist/0.0.5/SHA256SUMS`
 
-Current `0.0.4` binary sizes from local release builds:
+Current `0.0.5` binary sizes from local release builds:
 - macOS arm64: ~678 KB
 - macOS x64: ~711 KB
 - Linux arm64: ~560 KB

@@ -9,7 +9,7 @@ const output_mod = @import("output.zig");
 const commands = @import("commands.zig");
 
 const Style = output_mod.Style;
-const VERSION = "0.0.4";
+const VERSION = "0.0.5";
 
 const EXIT_OK: u8 = 0;
 const EXIT_ERROR: u8 = 1;
@@ -346,7 +346,7 @@ fn printHelp(w: *output_mod.Writer) !void {
         \\  subaccount create <KEY>          Create subaccount
         \\  subaccount list                  List subaccounts
         \\  subaccount transfer <AMT> --to <ADDR>
-        \\  withdraw <AMOUNT>                Withdraw funds
+        \\  withdraw <AMOUNT>                Withdraw funds (1 USDC fee)
         \\  api-key create                   Create API key
         \\  api-key revoke <KEY>             Revoke API key
         \\  api-key list                     List API keys
