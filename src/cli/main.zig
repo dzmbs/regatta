@@ -9,7 +9,7 @@ const output_mod = @import("output.zig");
 const commands = @import("commands.zig");
 
 const Style = output_mod.Style;
-const VERSION = "0.0.6";
+const VERSION = "0.0.7";
 
 const EXIT_OK: u8 = 0;
 const EXIT_ERROR: u8 = 1;
@@ -90,6 +90,7 @@ pub fn main() void {
         .prices => commands.prices(allocator, &w, config) catch |e| exit(&w, cmd_name, e),
         .book => |a| commands.book(allocator, &w, config, a) catch |e| exit(&w, cmd_name, e),
         .candles => |a| commands.candles(allocator, &w, config, a) catch |e| exit(&w, cmd_name, e),
+        .balance => |a| commands.balanceCmd(allocator, &w, &config, a) catch |e| exit(&w, cmd_name, e),
         .account => |a| commands.account(allocator, &w, &config, a) catch |e| exit(&w, cmd_name, e),
         .positions => |a| commands.positionsCmd(allocator, &w, &config, a) catch |e| exit(&w, cmd_name, e),
         .orders => |a| commands.ordersCmd(allocator, &w, &config, a) catch |e| exit(&w, cmd_name, e),
@@ -246,7 +247,8 @@ fn printHelp(w: *output_mod.Writer) !void {
 
     try w.styled(Style.bold_white, "ACCOUNT\n");
     try w.print(
-        \\  account [ADDR]                   Balance, equity, fees
+        \\  balance [solana|pacifica [ADDR]] Wallet + exchange balances
+        \\  account [ADDR]                   Pacifica account detail
         \\  positions [ADDR]                 Open positions
         \\  orders [ADDR]                    Open orders
         \\  history [ADDR]                   Order history
@@ -411,6 +413,7 @@ fn printHelp(w: *output_mod.Writer) !void {
     try w.styled(Style.bold_white, "EXAMPLES\n");
     try w.print(
         \\  regatta prices                              All prices
+        \\  regatta balance --json                      Show Solana + Pacifica balances
         \\  regatta buy BTC 0.1 @100000                 Limit buy
         \\  regatta sell ETH 1.0                        Market sell
         \\  regatta deposit solana 10                   Deposit 10 USDC on Solana (minimum)

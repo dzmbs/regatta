@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v0.0.6-blue" alt="version" />
+  <img src="https://img.shields.io/badge/version-v0.0.7-blue" alt="version" />
   <img src="https://img.shields.io/badge/license-MIT-green" alt="license" />
   <img src="https://img.shields.io/badge/status-beta-orange" alt="status" />
   <img src="https://img.shields.io/badge/platform-macOS_|_Linux-blue" alt="platform" />
@@ -95,6 +95,7 @@ regatta cancel --all
 # Access / onboarding helpers
 regatta access status --json
 regatta access claim <CODE>
+regatta balance --json
 regatta deposit solana 10
 regatta transfer solana sol 0.1 <ADDR>
 regatta transfer solana usdc 5 <ADDR>
@@ -176,6 +177,7 @@ Convenience exports include:
 | `regatta deposit solana <AMOUNT> [--rpc URL]` | Deposit USDC on Solana (minimum 10 USDC) |
 | `regatta transfer solana sol <AMOUNT> <TO> [--rpc URL]` | Send SOL on Solana |
 | `regatta transfer solana usdc <AMOUNT> <TO> [--rpc URL]` | Send USDC on Solana (creates recipient ATA if needed) |
+| `regatta balance [solana|pacifica]` | Show Solana wallet and/or Pacifica balances |
 
 **Flags:** `--reduce-only`, `--tif GTC|IOC|ALO|TOB`, `--slippage <PCT>`, `--dry-run`
 
@@ -321,22 +323,22 @@ tests/
 
 ## Release
 
-GitHub Releases are built automatically by Actions when you push a tag like `v0.0.6`.
+GitHub Releases are built automatically by Actions when you push a tag like `v0.0.7`.
 
 Manual local build remains available:
 
 ```bash
-./scripts/release.sh 0.0.6
+./scripts/release.sh 0.0.7
 ```
 
 This produces:
-- `dist/0.0.6/regatta-darwin-arm64`
-- `dist/0.0.6/regatta-darwin-x64`
-- `dist/0.0.6/regatta-linux-arm64`
-- `dist/0.0.6/regatta-linux-x64`
-- `dist/0.0.6/SHA256SUMS`
+- `dist/0.0.7/regatta-darwin-arm64`
+- `dist/0.0.7/regatta-darwin-x64`
+- `dist/0.0.7/regatta-linux-arm64`
+- `dist/0.0.7/regatta-linux-x64`
+- `dist/0.0.7/SHA256SUMS`
 
-Current `0.0.6` binary sizes from local release builds:
+Current `0.0.7` binary sizes from local release builds:
 - macOS arm64: ~678 KB
 - macOS x64: ~711 KB
 - Linux arm64: ~560 KB

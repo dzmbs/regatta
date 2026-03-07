@@ -14,6 +14,7 @@ pub const Command = union(enum) {
     prices: void,
     book: BookArgs,
     candles: CandleArgs,
+    balance: BalanceArgs,
     account: AddrArg,
     positions: AddrArg,
     orders: AddrArg,
@@ -81,6 +82,14 @@ pub const CandleArgs = struct {
     start: ?[]const u8 = null,
     end: ?[]const u8 = null,
 };
+
+pub const BalanceArgs = struct {
+    scope: BalanceScope = .both,
+    address: ?[]const u8 = null,
+    rpc_url: ?[]const u8 = null,
+};
+
+pub const BalanceScope = enum { both, solana, pacifica };
 
 pub const HistoryArgs = struct {
     address: ?[]const u8 = null,
@@ -349,6 +358,8 @@ pub fn parse(allocator: std.mem.Allocator) ParseError!ParseResult {
         .{ .book = parseBook(rest) orelse return error.MissingArgument }
     else if (std.mem.eql(u8, cmd_str, "candles") or std.mem.eql(u8, cmd_str, "kline"))
         .{ .candles = parseCandles(rest) orelse return error.MissingArgument }
+    else if (std.mem.eql(u8, cmd_str, "balance"))
+        .{ .balance = parseBalance(rest) }
     else if (std.mem.eql(u8, cmd_str, "account") or std.mem.eql(u8, cmd_str, "acc"))
         .{ .account = parseAddr(rest) }
     else if (std.mem.eql(u8, cmd_str, "positions") or std.mem.eql(u8, cmd_str, "pos"))
@@ -463,6 +474,34 @@ fn parseEdit(args: []const []const u8) ?EditArgs {
 
 fn parseAddr(args: []const []const u8) AddrArg {
     return .{ .address = if (args.len > 0) args[0] else null };
+}
+
+fn parseBalance(args: []const []const u8) BalanceArgs {
+    var result = BalanceArgs{};
+    var i: usize = 0;
+
+    if (i < args.len) {
+        if (std.mem.eql(u8, args[i], "solana")) {
+            result.scope = .solana;
+            i += 1;
+        } else if (std.mem.eql(u8, args[i], "pacifica")) {
+            result.scope = .pacifica;
+            i += 1;
+            if (i < args.len and !std.mem.startsWith(u8, args[i], "--")) {
+                result.address = args[i];
+                i += 1;
+            }
+        }
+    }
+
+    while (i < args.len) : (i += 1) {
+        if (std.mem.eql(u8, args[i], "--rpc") and i + 1 < args.len) {
+            i += 1;
+            result.rpc_url = args[i];
+        }
+    }
+
+    return result;
 }
 
 fn parseBook(args: []const []const u8) ?BookArgs {

@@ -4,7 +4,7 @@ info:
   description: API for the Exchange
   license:
     name: ''
-  version: 0.0.6
+  version: 0.0.7
 paths:
   /api/v1/account:
     get:

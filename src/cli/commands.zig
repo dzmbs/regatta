@@ -336,8 +336,186 @@ pub fn candles(allocator: std.mem.Allocator, w: *Writer, config: Config, a: args
 }
 
 // ╔═══════════════════════════════════════════════════════════════╗
-// ║  2. ACCOUNT                                                   ║
+// ║  2. BALANCE / ACCOUNT                                         ║
 // ╚═══════════════════════════════════════════════════════════════╝
+
+pub fn balanceCmd(allocator: std.mem.Allocator, w: *Writer, config: *Config, a: args_mod.BalanceArgs) !void {
+    const want_solana = a.scope == .both or a.scope == .solana;
+    const want_pacifica = a.scope == .both or a.scope == .pacifica;
+    const rpc_url = a.rpc_url orelse config.getSolanaRpcUrl();
+
+    var solana_json: ?[]u8 = null;
+    defer if (solana_json) |s| allocator.free(s);
+    var pacifica_json: ?[]u8 = null;
+    defer if (pacifica_json) |s| allocator.free(s);
+
+    if (want_solana) {
+        if (config.getSigner()) |signer| {
+            var preflight = try sdk.solana.depositPreflight(allocator, rpc_url, &signer);
+            defer preflight.deinit(allocator);
+
+            var sol_buf: [64]u8 = undefined;
+            var usdc_buf: [64]u8 = undefined;
+            const sol_str = formatDecimalAmount(&sol_buf, preflight.sol_lamports, 9) catch return error.Overflow;
+            const usdc_str = formatDecimalAmount(&usdc_buf, preflight.usdc_units, 6) catch return error.Overflow;
+            solana_json = try std.fmt.allocPrint(allocator,
+                "{{\"address\":\"{s}\",\"rpc\":\"{s}\",\"sol\":\"{s}\",\"sol_lamports\":{d},\"usdc\":\"{s}\",\"usdc_units\":{d},\"usdc_ata\":\"{s}\"}}",
+                .{ preflight.address_b58, rpc_url, sol_str, preflight.sol_lamports, usdc_str, preflight.usdc_units, preflight.ata_b58 }
+            );
+
+            if (w.format != .json and a.scope != .both) {
+                try w.heading("Solana Balance");
+                try w.kv("Address", preflight.address_b58);
+                try w.kv("RPC", rpc_url);
+                try w.kv("SOL", sol_str);
+                try w.kv("USDC", usdc_str);
+                try w.kv("USDC ATA", preflight.ata_b58);
+                try w.footer();
+                return;
+            }
+        } else |e| {
+            if (a.scope != .both) return e;
+        }
+    }
+
+    if (want_pacifica) {
+        const addr = a.address orelse config.getAddress() orelse blk: {
+            if (a.scope == .both) break :blk null;
+            return error.MissingAddress;
+        };
+        if (addr) |account_addr| {
+            var client = Client.init(allocator, config.chain);
+            defer client.deinit();
+
+            var resp = try client.getAccountInfo(account_addr);
+            defer resp.deinit();
+
+            if (resp.status == .not_found) {
+                pacifica_json = try std.fmt.allocPrint(allocator,
+                    "{{\"initialized\":false,\"address\":\"{s}\",\"message\":\"account not initialized yet\"}}",
+                    .{account_addr}
+                );
+            } else {
+                const parsed = try std.json.parseFromSlice(std.json.Value, allocator, resp.body, .{});
+                defer parsed.deinit();
+                const data = extractData(parsed.value) orelse {
+                    if (w.format == .json) return checkJsonResponse(w, resp.body);
+                    try w.fail(extractError(parsed.value));
+                    return error.CommandFailed;
+                };
+                const obj = switch (data) {
+                    .object => |o| o,
+                    else => {
+                        try w.fail("unexpected response format");
+                        return error.CommandFailed;
+                    },
+                };
+                pacifica_json = try std.fmt.allocPrint(allocator,
+                    "{{\"initialized\":true,\"address\":\"{s}\",\"balance\":\"{s}\",\"equity\":\"{s}\",\"available\":\"{s}\",\"withdrawable\":\"{s}\",\"margin_used\":\"{s}\",\"fee_level\":\"{s}\",\"maker_fee\":\"{s}\",\"taker_fee\":\"{s}\",\"positions\":\"{s}\",\"orders\":\"{s}\"}}",
+                    .{ account_addr, jsonStr(obj, "balance"), jsonStr(obj, "account_equity"), jsonStr(obj, "available_to_spend"), jsonStr(obj, "available_to_withdraw"), jsonStr(obj, "total_margin_used"), jsonStr(obj, "fee_level"), jsonStr(obj, "maker_fee"), jsonStr(obj, "taker_fee"), jsonStr(obj, "positions_count"), jsonStr(obj, "orders_count") }
+                );
+            }
+
+            if (w.format != .json and a.scope != .both) {
+                try w.heading("Pacifica Balance");
+                const parsed = try std.json.parseFromSlice(std.json.Value, allocator, pacifica_json.?, .{});
+                defer parsed.deinit();
+                const obj = parsed.value.object;
+                try w.kv("Address", jsonStr(obj, "address"));
+                if (obj.get("initialized")) |v| {
+                    switch (v) {
+                        .bool => |b| if (!b) {
+                            try w.kv("Initialized", "no");
+                            try w.kv("Status", jsonStr(obj, "message"));
+                            try w.footer();
+                            return;
+                        },
+                        else => {},
+                    }
+                }
+                try w.kv("Balance", jsonStr(obj, "balance"));
+                try w.kv("Equity", jsonStr(obj, "equity"));
+                try w.kv("Available", jsonStr(obj, "available"));
+                try w.kv("Withdrawable", jsonStr(obj, "withdrawable"));
+                try w.kv("Margin Used", jsonStr(obj, "margin_used"));
+                try w.kv("Positions", jsonStr(obj, "positions"));
+                try w.kv("Orders", jsonStr(obj, "orders"));
+                try w.footer();
+                return;
+            }
+        }
+    }
+
+    if (w.format == .json) {
+        var buf = std.ArrayList(u8){};
+        defer buf.deinit(allocator);
+        try buf.appendSlice(allocator, "{");
+        var first = true;
+        if (solana_json) |s| {
+            try buf.appendSlice(allocator, "\"solana\":");
+            try buf.appendSlice(allocator, s);
+            first = false;
+        }
+        if (pacifica_json) |s| {
+            if (!first) try buf.appendSlice(allocator, ",");
+            try buf.appendSlice(allocator, "\"pacifica\":");
+            try buf.appendSlice(allocator, s);
+            first = false;
+        }
+        if (a.scope == .both and solana_json == null) {
+            if (!first) try buf.appendSlice(allocator, ",");
+            try buf.appendSlice(allocator, "\"solana\":{\"available\":false,\"message\":\"missing signing key\"}");
+            first = false;
+        }
+        if (a.scope == .both and pacifica_json == null) {
+            if (!first) try buf.appendSlice(allocator, ",");
+            try buf.appendSlice(allocator, "\"pacifica\":{\"available\":false,\"message\":\"missing account address\"}");
+        }
+        try buf.appendSlice(allocator, "}");
+        try w.jsonRaw(buf.items);
+        return;
+    }
+
+    if (a.scope == .both) {
+        try w.heading("Balances");
+        if (solana_json != null) {
+            const signer = try config.getSigner();
+            var preflight = try sdk.solana.depositPreflight(allocator, rpc_url, &signer);
+            defer preflight.deinit(allocator);
+            var sol_buf: [64]u8 = undefined;
+            var usdc_buf: [64]u8 = undefined;
+            try w.kv("Solana Address", preflight.address_b58);
+            try w.kv("SOL", formatDecimalAmount(&sol_buf, preflight.sol_lamports, 9) catch return error.Overflow);
+            try w.kv("USDC", formatDecimalAmount(&usdc_buf, preflight.usdc_units, 6) catch return error.Overflow);
+        } else {
+            try w.kv("Solana", "unavailable (missing signing key)");
+        }
+        if (pacifica_json) |pj| {
+            const parsed = try std.json.parseFromSlice(std.json.Value, allocator, pj, .{});
+            defer parsed.deinit();
+            const obj = parsed.value.object;
+            try w.kv("Pacifica Address", jsonStr(obj, "address"));
+            if (obj.get("initialized")) |v| {
+                switch (v) {
+                    .bool => |b| {
+                        if (!b) {
+                            try w.kv("Pacifica", jsonStr(obj, "message"));
+                        } else {
+                            try w.kv("Pacifica Balance", jsonStr(obj, "balance"));
+                            try w.kv("Pacifica Equity", jsonStr(obj, "equity"));
+                            try w.kv("Withdrawable", jsonStr(obj, "withdrawable"));
+                        }
+                    },
+                    else => {},
+                }
+            }
+        } else {
+            try w.kv("Pacifica", "unavailable (missing account address)");
+        }
+        try w.footer();
+        return;
+    }
+}
 
 pub fn account(allocator: std.mem.Allocator, w: *Writer, config: *Config, a: args_mod.AddrArg) !void {
     const addr = a.address orelse config.getAddress() orelse return error.MissingAddress;
@@ -1980,6 +2158,34 @@ fn extractError(value: std.json.Value) []const u8 {
         else => {},
     }
     return "request failed";
+}
+
+fn formatDecimalAmount(buf: []u8, units: u64, decimals: u32) ![]const u8 {
+    var scale: u64 = 1;
+    var i: u32 = 0;
+    while (i < decimals) : (i += 1) scale *= 10;
+
+    const whole = @divFloor(units, scale);
+    const frac = @mod(units, scale);
+    if (frac == 0) return std.fmt.bufPrint(buf, "{d}", .{whole});
+
+    var frac_buf: [32]u8 = undefined;
+    const raw_frac = try std.fmt.bufPrint(&frac_buf, "{d}", .{frac});
+    const pad_len: usize = @intCast(decimals - raw_frac.len);
+
+    var tmp: [32]u8 = undefined;
+    @memset(tmp[0..], 0);
+    var out_i: usize = 0;
+    var j: usize = 0;
+    while (j < pad_len) : (j += 1) {
+        tmp[out_i] = '0';
+        out_i += 1;
+    }
+    @memcpy(tmp[out_i .. out_i + raw_frac.len], raw_frac);
+    out_i += raw_frac.len;
+    while (out_i > 0 and tmp[out_i - 1] == '0') out_i -= 1;
+
+    return std.fmt.bufPrint(buf, "{d}.{s}", .{ whole, tmp[0..out_i] });
 }
 
 fn jsonStr(obj: std.json.ObjectMap, key: []const u8) []const u8 {
