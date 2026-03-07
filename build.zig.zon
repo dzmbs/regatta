@@ -1,6 +1,6 @@
 .{
     .name = .regatta,
-    .version = "0.0.8",
+    .version = "0.0.9",
     .fingerprint = 0x3434961e225e8917,
     .minimum_zig_version = "0.15.2",
     .dependencies = .{

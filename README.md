@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v0.0.8-blue" alt="version" />
+  <img src="https://img.shields.io/badge/version-v0.0.9-blue" alt="version" />
   <img src="https://img.shields.io/badge/license-MIT-green" alt="license" />
   <img src="https://img.shields.io/badge/status-beta-orange" alt="status" />
   <img src="https://img.shields.io/badge/platform-macOS_|_Linux-blue" alt="platform" />
@@ -89,6 +89,7 @@ regatta orders --json
 
 # Trade
 regatta buy BTC 0.001 @100000 --dry-run
+regatta buy HYPE '$10' --dry-run
 regatta sell ETH 0.001 --dry-run
 regatta cancel --all
 
@@ -165,8 +166,8 @@ Convenience exports include:
 
 | Command | Description |
 |---------|-------------|
-| `regatta buy <SYM> <AMT> [@PRICE]` | Limit or market buy |
-| `regatta sell <SYM> <AMT> [@PRICE]` | Limit or market sell |
+| `regatta buy <SYM> <AMT\|$USD> [@PRICE]` | Limit or market buy; supports USD notional sizing |
+| `regatta sell <SYM> <AMT\|$USD> [@PRICE]` | Limit or market sell; supports USD notional sizing |
 | `regatta cancel <SYM> [ORDER_ID]` | Cancel order |
 | `regatta cancel --all [--symbol SYM]` | Cancel all orders |
 | `regatta edit <SYM> <OID> <PRICE> <AMT>` | Edit existing order |
@@ -254,6 +255,7 @@ Exit codes: `0` success, `1` error, `2` usage, `3` auth, `4` network
 Built for automation and AI agents:
 
 - JSON when piped, `--json` always available
+- USD-notional order sizing for `buy` / `sell` (`$10`, `usd:10`, `10usd`)
 - semantic exit codes (`0/1/2/3/4`)
 - `--dry-run` for signed request previewing
 - `--quiet` for concise values
@@ -325,22 +327,22 @@ tests/
 
 ## Release
 
-GitHub Releases are built automatically by Actions when you push a tag like `v0.0.8`.
+GitHub Releases are built automatically by Actions when you push a tag like `v0.0.9`.
 
 Manual local build remains available:
 
 ```bash
-./scripts/release.sh 0.0.8
+./scripts/release.sh 0.0.9
 ```
 
 This produces:
-- `dist/0.0.8/regatta-darwin-arm64`
-- `dist/0.0.8/regatta-darwin-x64`
-- `dist/0.0.8/regatta-linux-arm64`
-- `dist/0.0.8/regatta-linux-x64`
-- `dist/0.0.8/SHA256SUMS`
+- `dist/0.0.9/regatta-darwin-arm64`
+- `dist/0.0.9/regatta-darwin-x64`
+- `dist/0.0.9/regatta-linux-arm64`
+- `dist/0.0.9/regatta-linux-x64`
+- `dist/0.0.9/SHA256SUMS`
 
-Current `0.0.8` binary sizes from local release builds:
+Current `0.0.9` binary sizes from local release builds:
 - macOS arm64: ~678 KB
 - macOS x64: ~711 KB
 - Linux arm64: ~560 KB

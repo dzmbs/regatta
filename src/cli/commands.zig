@@ -750,6 +750,20 @@ pub fn placeOrder(allocator: std.mem.Allocator, w: *Writer, config: *Config, a: 
     const aa = arena.allocator();
 
     const side_str: []const u8 = if (is_buy) "bid" else "ask";
+    const resolved = resolveOrderAmount(allocator, &client, a.symbol, a.amount, a.price) catch |e| {
+        if (w.format == .json) {
+            var buf: [1400]u8 = undefined;
+            const ms = w.elapsedMs();
+            const body = std.fmt.bufPrint(&buf,
+                "{{\"v\":1,\"status\":\"error\",\"cmd\":\"{s}\",\"error\":\"CommandFailed\",\"message\":\"failed to resolve order amount\",\"data\":{{\"symbol\":\"{s}\",\"requested_amount\":\"{s}\",\"price\":\"{s}\",\"reason\":\"{s}\"}},\"timing_ms\":{d}}}",
+                .{ if (is_buy) "buy" else "sell", a.symbol, a.amount, a.price orelse "", @errorName(e), ms }
+            ) catch return error.Overflow;
+            try w.rawJson(body);
+            return error.CommandFailed;
+        }
+        return failFmt(w, "failed to resolve order amount: {s}", .{@errorName(e)});
+    };
+    defer if (resolved.owned_amount) |s| allocator.free(s);
 
     if (a.price) |price| {
         var uuid_buf: [36]u8 = undefined;
@@ -758,7 +772,7 @@ pub fn placeOrder(allocator: std.mem.Allocator, w: *Writer, config: *Config, a: 
         var payload = std.json.ObjectMap.init(aa);
         try payload.put("symbol", .{ .string = a.symbol });
         try payload.put("price", .{ .string = price });
-        try payload.put("amount", .{ .string = a.amount });
+        try payload.put("amount", .{ .string = resolved.amount });
         try payload.put("side", .{ .string = side_str });
         try payload.put("tif", .{ .string = a.tif });
         try payload.put("reduce_only", .{ .bool = a.reduce_only });
@@ -767,6 +781,9 @@ pub fn placeOrder(allocator: std.mem.Allocator, w: *Writer, config: *Config, a: 
         if (a.dry_run) {
             var signed = try sdk.signing.signRequest(aa, &signer, "create_order", .{ .object = payload }, @intCast(std.time.milliTimestamp()), 5000);
             defer signed.deinit();
+            if (resolved.from_notional and w.format != .json) {
+                try w.print("Resolved {s} -> size {s} using {s} {s} (lot {s})\n", .{ resolved.notional_usd orelse a.amount, resolved.amount, resolved.basis_source orelse "price", resolved.price_basis orelse "-", resolved.lot_size orelse "-" });
+            }
             try w.print("DRY RUN — would send:\n{s}\n", .{signed.message});
             return;
         }
@@ -790,7 +807,7 @@ pub fn placeOrder(allocator: std.mem.Allocator, w: *Writer, config: *Config, a: 
 
         var payload = std.json.ObjectMap.init(aa);
         try payload.put("symbol", .{ .string = a.symbol });
-        try payload.put("amount", .{ .string = a.amount });
+        try payload.put("amount", .{ .string = resolved.amount });
         try payload.put("side", .{ .string = side_str });
         try payload.put("slippage_percent", .{ .string = a.slippage orelse "0.5" });
         try payload.put("reduce_only", .{ .bool = a.reduce_only });
@@ -799,6 +816,9 @@ pub fn placeOrder(allocator: std.mem.Allocator, w: *Writer, config: *Config, a: 
         if (a.dry_run) {
             var signed = try sdk.signing.signRequest(aa, &signer, "create_market_order", .{ .object = payload }, @intCast(std.time.milliTimestamp()), 5000);
             defer signed.deinit();
+            if (resolved.from_notional and w.format != .json) {
+                try w.print("Resolved {s} -> size {s} using {s} {s} (lot {s})\n", .{ resolved.notional_usd orelse a.amount, resolved.amount, resolved.basis_source orelse "price", resolved.price_basis orelse "-", resolved.lot_size orelse "-" });
+            }
             try w.print("DRY RUN — would send:\n{s}\n", .{signed.message});
             return;
         }
@@ -2158,6 +2178,137 @@ fn extractError(value: std.json.Value) []const u8 {
         else => {},
     }
     return "request failed";
+}
+
+const ResolvedOrderAmount = struct {
+    amount: []const u8,
+    owned_amount: ?[]u8 = null,
+    from_notional: bool = false,
+    notional_usd: ?[]const u8 = null,
+    price_basis: ?[]const u8 = null,
+    basis_source: ?[]const u8 = null,
+    lot_size: ?[]const u8 = null,
+};
+
+fn resolveOrderAmount(allocator: std.mem.Allocator, client: *Client, symbol: []const u8, raw_amount: []const u8, explicit_price: ?[]const u8) !ResolvedOrderAmount {
+    const parsed = parseNotionalUsd(raw_amount) orelse return .{ .amount = raw_amount };
+
+    var info_resp = try client.getMarketInfo();
+    defer info_resp.deinit();
+    var prices_resp = try client.getPrices();
+    defer prices_resp.deinit();
+
+    const market = try findSymbolObject(allocator, info_resp.body, symbol);
+    defer market.parsed.deinit();
+    const price_data = try findSymbolObject(allocator, prices_resp.body, symbol);
+    defer price_data.parsed.deinit();
+
+    const lot_size = jsonStr(market.obj, "lot_size");
+    const min_order_size = jsonStr(market.obj, "min_order_size");
+    const basis_price = explicit_price orelse blk: {
+        const mark = jsonStr(price_data.obj, "mark");
+        if (!std.mem.eql(u8, mark, "-")) break :blk mark;
+        const mid = jsonStr(price_data.obj, "mid");
+        if (!std.mem.eql(u8, mid, "-")) break :blk mid;
+        const oracle = jsonStr(price_data.obj, "oracle");
+        if (!std.mem.eql(u8, oracle, "-")) break :blk oracle;
+        return error.PriceUnavailable;
+    };
+    const basis_source: []const u8 = if (explicit_price != null) "limit_price" else if (!std.mem.eql(u8, jsonStr(price_data.obj, "mark"), "-")) "mark" else if (!std.mem.eql(u8, jsonStr(price_data.obj, "mid"), "-")) "mid" else "oracle";
+
+    const usd = try std.fmt.parseFloat(f64, parsed);
+    const px = try std.fmt.parseFloat(f64, basis_price);
+    const step = try std.fmt.parseFloat(f64, lot_size);
+    if (!(usd > 0) or !(px > 0) or !(step > 0)) return error.InvalidAmount;
+
+    const raw_size = usd / px;
+    const snapped = snapNearestToStep(raw_size, step);
+    if (!(snapped > 0)) return error.AmountBelowLotSize;
+
+    const snapped_notional = snapped * px;
+    const min_notional = std.fmt.parseFloat(f64, min_order_size) catch 0;
+    if (min_notional > 0 and snapped_notional + 1e-12 < min_notional) return error.AmountBelowMinimumOrderSize;
+
+    const amount = try formatStepAmountAlloc(allocator, snapped, lot_size);
+    return .{
+        .amount = amount,
+        .owned_amount = amount,
+        .from_notional = true,
+        .notional_usd = raw_amount,
+        .price_basis = basis_price,
+        .basis_source = basis_source,
+        .lot_size = lot_size,
+    };
+}
+
+const SymbolObject = struct {
+    parsed: std.json.Parsed(std.json.Value),
+    obj: std.json.ObjectMap,
+};
+
+fn findSymbolObject(allocator: std.mem.Allocator, body: []const u8, symbol: []const u8) !SymbolObject {
+    const parsed = try std.json.parseFromSlice(std.json.Value, allocator, body, .{});
+    const data = extractData(parsed.value) orelse {
+        parsed.deinit();
+        return error.InvalidResponse;
+    };
+    const arr = switch (data) {
+        .array => |a| a,
+        else => {
+            parsed.deinit();
+            return error.InvalidResponse;
+        },
+    };
+    for (arr.items) |item| {
+        const obj = switch (item) {
+            .object => |o| o,
+            else => continue,
+        };
+        if (std.mem.eql(u8, jsonStr(obj, "symbol"), symbol)) return .{ .parsed = parsed, .obj = obj };
+    }
+    parsed.deinit();
+    return error.SymbolNotFound;
+}
+
+fn parseNotionalUsd(input: []const u8) ?[]const u8 {
+    if (input.len >= 2 and input[0] == '$') return input[1..];
+    if (std.mem.startsWith(u8, input, "usd:")) return input[4..];
+    if (input.len > 3 and std.ascii.endsWithIgnoreCase(input, "usd")) return input[0 .. input.len - 3];
+    return null;
+}
+
+fn countStepDecimals(step_str: []const u8) u32 {
+    if (std.mem.indexOfScalar(u8, step_str, '.')) |idx| {
+        var end = step_str.len;
+        while (end > idx + 1 and step_str[end - 1] == '0') end -= 1;
+        return @intCast(end - (idx + 1));
+    }
+    return 0;
+}
+
+fn snapNearestToStep(value: f64, step: f64) f64 {
+    return @floor((value / step) + 0.5 + 1e-12) * step;
+}
+
+fn formatStepAmountAlloc(allocator: std.mem.Allocator, value: f64, step_str: []const u8) ![]u8 {
+    const decimals = countStepDecimals(step_str);
+    var tmp: [64]u8 = undefined;
+    const raw = switch (decimals) {
+        0 => try std.fmt.bufPrint(&tmp, "{d:.0}", .{value}),
+        1 => try std.fmt.bufPrint(&tmp, "{d:.1}", .{value}),
+        2 => try std.fmt.bufPrint(&tmp, "{d:.2}", .{value}),
+        3 => try std.fmt.bufPrint(&tmp, "{d:.3}", .{value}),
+        4 => try std.fmt.bufPrint(&tmp, "{d:.4}", .{value}),
+        5 => try std.fmt.bufPrint(&tmp, "{d:.5}", .{value}),
+        6 => try std.fmt.bufPrint(&tmp, "{d:.6}", .{value}),
+        7 => try std.fmt.bufPrint(&tmp, "{d:.7}", .{value}),
+        8 => try std.fmt.bufPrint(&tmp, "{d:.8}", .{value}),
+        else => try std.fmt.bufPrint(&tmp, "{d:.9}", .{value}),
+    };
+    var end = raw.len;
+    while (end > 0 and raw[end - 1] == '0') end -= 1;
+    if (end > 0 and raw[end - 1] == '.') end -= 1;
+    return allocator.dupe(u8, raw[0..end]);
 }
 
 fn formatDecimalAmount(buf: []u8, units: u64, decimals: u32) ![]const u8 {

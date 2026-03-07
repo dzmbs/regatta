@@ -9,7 +9,7 @@ const output_mod = @import("output.zig");
 const commands = @import("commands.zig");
 
 const Style = output_mod.Style;
-const VERSION = "0.0.8";
+const VERSION = "0.0.9";
 
 const EXIT_OK: u8 = 0;
 const EXIT_ERROR: u8 = 1;
@@ -262,8 +262,8 @@ fn printHelp(w: *output_mod.Writer) !void {
 
     try w.styled(Style.bold_white, "TRADING\n");
     try w.print(
-        \\  buy <SYM> <AMT> [@PRICE]         Limit (with @) or market buy
-        \\  sell <SYM> <AMT> [@PRICE]         Limit (with @) or market sell
+        \\  buy <SYM> <AMT|$USD> [@PRICE]    Limit/market buy; supports USD notional
+        \\  sell <SYM> <AMT|$USD> [@PRICE]   Limit/market sell; supports USD notional
         \\  cancel <SYM> [ORDER_ID]           Cancel order
         \\  cancel --all [--symbol SYM]       Cancel all orders
         \\  edit <SYM> <OID> <PRICE> <AMT>    Edit existing order
@@ -415,6 +415,7 @@ fn printHelp(w: *output_mod.Writer) !void {
         \\  regatta prices                              All prices
         \\  regatta balance --json                      Show Solana + Pacifica balances
         \\  regatta buy BTC 0.1 @100000                 Limit buy
+        \\  regatta buy HYPE $10                        Market buy by USD notional
         \\  regatta sell ETH 1.0                        Market sell
         \\  regatta deposit solana 10                   Deposit 10 USDC on Solana (minimum)
         \\  regatta transfer solana sol 0.1 <ADDR>      Send 0.1 SOL on Solana
@@ -454,8 +455,14 @@ fn printTopicHelp(w: *output_mod.Writer, topic: []const u8) !void {
     } else if (std.mem.eql(u8, topic, "buy") or std.mem.eql(u8, topic, "sell")) {
         try w.print(
             \\USAGE
-            \\  regatta buy <SYMBOL> <AMOUNT> [@PRICE]
-            \\  regatta sell <SYMBOL> <AMOUNT> [@PRICE]
+            \\  regatta buy <SYMBOL> <AMOUNT|$USD> [@PRICE]
+            \\  regatta sell <SYMBOL> <AMOUNT|$USD> [@PRICE]
+            \\
+            \\NOTES
+            \\  AMOUNT defaults to base-asset size (e.g. HYPE, BTC).
+            \\  For USD notional sizing, use $10, usd:10, or 10usd.
+            \\  regatta converts notional -> size using limit price (if given) or live mark price,
+            \\  then snaps size down to the market lot size.
             \\
             \\  With @PRICE: limit order. Without: market order.
             \\
