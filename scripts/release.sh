@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-VERSION="${1:-0.0.9}"
+VERSION="${1:-0.0.10}"
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 DIST="$ROOT/dist/$VERSION"
 

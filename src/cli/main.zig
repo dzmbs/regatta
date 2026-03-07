@@ -9,7 +9,7 @@ const output_mod = @import("output.zig");
 const commands = @import("commands.zig");
 
 const Style = output_mod.Style;
-const VERSION = "0.0.9";
+const VERSION = "0.0.10";
 
 const EXIT_OK: u8 = 0;
 const EXIT_ERROR: u8 = 1;
@@ -462,7 +462,7 @@ fn printTopicHelp(w: *output_mod.Writer, topic: []const u8) !void {
             \\  AMOUNT defaults to base-asset size (e.g. HYPE, BTC).
             \\  For USD notional sizing, use $10, usd:10, or 10usd.
             \\  regatta converts notional -> size using limit price (if given) or live mark price,
-            \\  then snaps size down to the market lot size.
+            \\  then snaps to a valid lot-sized amount that satisfies Pacifica min_order_size.
             \\
             \\  With @PRICE: limit order. Without: market order.
             \\
