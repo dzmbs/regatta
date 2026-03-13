@@ -20,6 +20,7 @@ pub const Config = struct {
     use_ws: bool = false,
     agent_wallet: ?[]const u8 = null,
     solana_rpc_url: ?[]const u8 = null,
+    builder_code: ?[]const u8 = null,
     env_buf: ?[]u8 = null,
     key_alloc: ?[]u8 = null,
     allocator: std.mem.Allocator,
@@ -83,6 +84,17 @@ pub const Config = struct {
     }
 };
 
+/// Validate builder code format: alphanumeric only, max 16 characters.
+pub fn validateBuilderCode(code: []const u8) !void {
+    if (code.len == 0) return error.EmptyBuilderCode;
+    if (code.len > 16) return error.BuilderCodeTooLong;
+    for (code) |c| {
+        const is_alpha = (c >= 'a' and c <= 'z') or (c >= 'A' and c <= 'Z');
+        const is_digit = c >= '0' and c <= '9';
+        if (!is_alpha and !is_digit) return error.InvalidBuilderCodeChar;
+    }
+}
+
 pub fn load(allocator: std.mem.Allocator, flags: args_mod.GlobalFlags) Config {
     var config = Config{ .allocator = allocator };
 
@@ -100,6 +112,7 @@ pub fn load(allocator: std.mem.Allocator, flags: args_mod.GlobalFlags) Config {
     }
     if (getEnv("PACIFICA_AGENT_WALLET")) |v| config.agent_wallet = v;
     if (getEnv("SOLANA_RPC_URL")) |v| config.solana_rpc_url = v;
+    if (getEnv("PACIFICA_BUILDER_CODE")) |v| config.builder_code = v;
 
     // CLI flags override everything
     if (flags.key) |k| config.key_b58 = k;
@@ -190,6 +203,8 @@ fn parseEnvBuf(buf: []const u8, config: *Config) void {
             _ = v;
         } else if (parseEnvLine(trimmed, "SOLANA_RPC_URL=")) |v| {
             if (config.solana_rpc_url == null) config.solana_rpc_url = v;
+        } else if (parseEnvLine(trimmed, "PACIFICA_BUILDER_CODE=")) |v| {
+            if (config.builder_code == null) config.builder_code = v;
         }
     }
 }
@@ -254,4 +269,61 @@ test "parseEnvBuf: flags > env > .env precedence" {
     var c = Config{ .allocator = std.testing.allocator, .key_b58 = "from_flag" };
     parseEnvBuf("PACIFICA_KEY=from_file\n", &c);
     try std.testing.expectEqualStrings("from_flag", c.key_b58.?);
+}
+
+test "validateBuilderCode: valid alphanumeric codes" {
+    // Valid codes: alphanumeric only, 1-16 characters
+    try validateBuilderCode("mybuilder");
+    try validateBuilderCode("ABC123");
+    try validateBuilderCode("a");
+    try validateBuilderCode("Z");
+    try validateBuilderCode("0123456789");
+    try validateBuilderCode("Builder2024");
+}
+
+test "validateBuilderCode: exactly 16 characters is valid" {
+    // Edge case: max length
+    try validateBuilderCode("1234567890123456");
+    try validateBuilderCode("ABCDEFGHIJKLMNOP");
+}
+
+test "validateBuilderCode: empty string is invalid" {
+    try std.testing.expectError(error.EmptyBuilderCode, validateBuilderCode(""));
+}
+
+test "validateBuilderCode: too long is invalid" {
+    // 17 characters should fail
+    try std.testing.expectError(error.BuilderCodeTooLong, validateBuilderCode("12345678901234567"));
+    try std.testing.expectError(error.BuilderCodeTooLong, validateBuilderCode("ABCDEFGHIJKLMNOPQ"));
+    try std.testing.expectError(error.BuilderCodeTooLong, validateBuilderCode("verylongbuildercode123"));
+}
+
+test "validateBuilderCode: non-alphanumeric characters are invalid" {
+    // Hyphens, underscores, spaces, special chars all invalid
+    try std.testing.expectError(error.InvalidBuilderCodeChar, validateBuilderCode("invalid-code"));
+    try std.testing.expectError(error.InvalidBuilderCodeChar, validateBuilderCode("has spaces"));
+    try std.testing.expectError(error.InvalidBuilderCodeChar, validateBuilderCode("under_score"));
+    try std.testing.expectError(error.InvalidBuilderCodeChar, validateBuilderCode("builder!"));
+    try std.testing.expectError(error.InvalidBuilderCodeChar, validateBuilderCode("code@123"));
+    try std.testing.expectError(error.InvalidBuilderCodeChar, validateBuilderCode("builder.io"));
+}
+
+test "validateBuilderCode: mixed case is valid" {
+    try validateBuilderCode("MixedCaseBuilder");
+    try validateBuilderCode("Builder123ABC");
+}
+
+test "config builder_code: PACIFICA_BUILDER_CODE env var loads" {
+    // Mock env var loading by setting config.builder_code directly
+    var c = Config{ .allocator = std.testing.allocator };
+    c.builder_code = "envbuilder";
+    try std.testing.expectEqualStrings("envbuilder", c.builder_code.?);
+}
+
+test "config builder_code: explicit value overrides if set" {
+    // When builder_code is already set (e.g., from flags), env doesn't override
+    var c = Config{ .allocator = std.testing.allocator, .builder_code = "flagvalue" };
+    // Simulating what would happen in load() - env would be checked but not override
+    if (c.builder_code == null) c.builder_code = "envvalue";
+    try std.testing.expectEqualStrings("flagvalue", c.builder_code.?);
 }

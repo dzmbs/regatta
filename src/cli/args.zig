@@ -38,6 +38,7 @@ pub const Command = union(enum) {
     access: AccessArgs,
     stream: StreamArgs,
     batch: BatchArgs,
+    builder: BuilderArgs,
     help: HelpArgs,
     version: void,
 };
@@ -52,6 +53,8 @@ pub const OrderArgs = struct {
     reduce_only: bool = false,
     tif: []const u8 = "GTC",
     dry_run: bool = false,
+    builder: ?[]const u8 = null,
+    no_builder: bool = false,
 };
 
 pub const CancelArgs = struct {
@@ -140,6 +143,8 @@ pub const StopArgs = struct {
     amount: ?[]const u8 = null,
     order_id: ?[]const u8 = null,
     dry_run: bool = false,
+    builder: ?[]const u8 = null,
+    no_builder: bool = false,
 };
 
 pub const StopAction = enum { create, cancel };
@@ -153,6 +158,8 @@ pub const TpSlArgs = struct {
     sl: ?[]const u8 = null,
     sl_limit: ?[]const u8 = null,
     dry_run: bool = false,
+    builder: ?[]const u8 = null,
+    no_builder: bool = false,
 };
 
 pub const TwapArgs = struct {
@@ -165,6 +172,8 @@ pub const TwapArgs = struct {
     order_id: ?[]const u8 = null,
     address: ?[]const u8 = null,
     dry_run: bool = false,
+    builder: ?[]const u8 = null,
+    no_builder: bool = false,
 };
 
 pub const TwapAction = enum { create, cancel, list, history };
@@ -210,6 +219,15 @@ pub const AccessArgs = struct {
 };
 
 pub const AccessAction = enum { claim, status };
+
+pub const BuilderArgs = struct {
+    action: BuilderAction = .list,
+    code: ?[]const u8 = null,
+    max_fee_rate: ?[]const u8 = null,
+    address: ?[]const u8 = null,
+};
+
+pub const BuilderAction = enum { approve, revoke, list, overview };
 
 pub const StreamArgs = struct {
     kind: StreamKind = .prices,
@@ -406,6 +424,8 @@ pub fn parse(allocator: std.mem.Allocator) ParseError!ParseResult {
         .{ .stream = parseStream(rest) }
     else if (std.mem.eql(u8, cmd_str, "batch"))
         .{ .batch = parseBatch(rest) }
+    else if (std.mem.eql(u8, cmd_str, "builder"))
+        .{ .builder = parseBuilder(rest) }
     else if (std.mem.eql(u8, cmd_str, "help") or std.mem.eql(u8, cmd_str, "--help") or std.mem.eql(u8, cmd_str, "-h"))
         .{ .help = .{ .topic = if (rest.len > 0) rest[0] else null } }
     else if (std.mem.eql(u8, cmd_str, "version") or std.mem.eql(u8, cmd_str, "--version") or std.mem.eql(u8, cmd_str, "-V"))
@@ -434,6 +454,11 @@ fn parseOrder(args: []const []const u8, global_dry_run: bool) ?OrderArgs {
         } else if (std.mem.eql(u8, a, "--slippage") and i + 1 < args.len) {
             i += 1;
             result.slippage = args[i];
+        } else if (std.mem.eql(u8, a, "--builder") and i + 1 < args.len) {
+            i += 1;
+            result.builder = args[i];
+        } else if (std.mem.eql(u8, a, "--no-builder")) {
+            result.no_builder = true;
         } else if (std.mem.eql(u8, a, "--dry-run") or std.mem.eql(u8, a, "-n")) {
             result.dry_run = true;
         } else if (!std.mem.startsWith(u8, a, "--")) {
@@ -634,6 +659,11 @@ fn parseStop(args: []const []const u8, global_dry_run: bool) StopArgs {
         } else if (std.mem.eql(u8, args[i], "--amount") and i + 1 < args.len) {
             i += 1;
             result.amount = args[i];
+        } else if (std.mem.eql(u8, args[i], "--builder") and i + 1 < args.len) {
+            i += 1;
+            result.builder = args[i];
+        } else if (std.mem.eql(u8, args[i], "--no-builder")) {
+            result.no_builder = true;
         } else if (std.mem.eql(u8, args[i], "--dry-run")) {
             result.dry_run = true;
         }
@@ -661,6 +691,11 @@ fn parseTpSl(args: []const []const u8, global_dry_run: bool) ?TpSlArgs {
         } else if (std.mem.eql(u8, args[i], "--sl-limit") and i + 1 < args.len) {
             i += 1;
             result.sl_limit = args[i];
+        } else if (std.mem.eql(u8, args[i], "--builder") and i + 1 < args.len) {
+            i += 1;
+            result.builder = args[i];
+        } else if (std.mem.eql(u8, args[i], "--no-builder")) {
+            result.no_builder = true;
         } else if (std.mem.eql(u8, args[i], "--dry-run")) {
             result.dry_run = true;
         }
@@ -699,6 +734,11 @@ fn parseTwap(args: []const []const u8, global_dry_run: bool) TwapArgs {
         } else if (std.mem.eql(u8, args[i], "--slippage") and i + 1 < args.len) {
             i += 1;
             result.slippage = args[i];
+        } else if (std.mem.eql(u8, args[i], "--builder") and i + 1 < args.len) {
+            i += 1;
+            result.builder = args[i];
+        } else if (std.mem.eql(u8, args[i], "--no-builder")) {
+            result.no_builder = true;
         } else if (std.mem.eql(u8, args[i], "--dry-run")) {
             result.dry_run = true;
         }
@@ -927,6 +967,37 @@ fn parseBatch(a: []const []const u8) BatchArgs {
     return result;
 }
 
+fn parseBuilder(args: []const []const u8) BuilderArgs {
+    var result = BuilderArgs{};
+    if (args.len == 0) return result;
+
+    if (std.mem.eql(u8, args[0], "approve")) {
+        result.action = .approve;
+        if (args.len > 1) result.code = args[1];
+        var i: usize = 2;
+        while (i < args.len) : (i += 1) {
+            if (std.mem.eql(u8, args[i], "--max-fee-rate") and i + 1 < args.len) {
+                i += 1;
+                result.max_fee_rate = args[i];
+            }
+        }
+    } else if (std.mem.eql(u8, args[0], "revoke")) {
+        result.action = .revoke;
+        if (args.len > 1) result.code = args[1];
+    } else if (std.mem.eql(u8, args[0], "list") or std.mem.eql(u8, args[0], "ls")) {
+        result.action = .list;
+        if (args.len > 1) result.address = args[1];
+    } else if (std.mem.eql(u8, args[0], "overview")) {
+        result.action = .overview;
+        if (args.len > 1) result.address = args[1];
+    } else {
+        result.action = .list;
+        result.address = args[0];
+    }
+
+    return result;
+}
+
 // ╔═══════════════════════════════════════════════════════════════╗
 // ║  Tests                                                        ║
 // ╚═══════════════════════════════════════════════════════════════╝
@@ -1041,4 +1112,100 @@ test "parseBatch: --stdin vs inline orders" {
     const inline_ = parseBatch(&.{ "buy BTC 0.1", "cancel BTC 1" });
     try std.testing.expect(!inline_.stdin);
     try std.testing.expectEqual(@as(usize, 2), inline_.count);
+}
+
+test "parseBuilder: approve with code and max fee rate" {
+    const r = parseBuilder(&.{ "approve", "mybuilder", "--max-fee-rate", "0.05" });
+    try std.testing.expect(r.action == .approve);
+    try std.testing.expectEqualStrings("mybuilder", r.code.?);
+    try std.testing.expectEqualStrings("0.05", r.max_fee_rate.?);
+}
+
+test "parseBuilder: revoke with code" {
+    const r = parseBuilder(&.{ "revoke", "oldbuilder" });
+    try std.testing.expect(r.action == .revoke);
+    try std.testing.expectEqualStrings("oldbuilder", r.code.?);
+}
+
+test "parseBuilder: list action variants" {
+    const list = parseBuilder(&.{ "list", "AddrXYZ" });
+    try std.testing.expect(list.action == .list);
+    try std.testing.expectEqualStrings("AddrXYZ", list.address.?);
+
+    const ls = parseBuilder(&.{ "ls", "AddrABC" });
+    try std.testing.expect(ls.action == .list);
+    try std.testing.expectEqualStrings("AddrABC", ls.address.?);
+}
+
+test "parseBuilder: overview action" {
+    const r = parseBuilder(&.{ "overview", "BuilderAddr" });
+    try std.testing.expect(r.action == .overview);
+    try std.testing.expectEqualStrings("BuilderAddr", r.address.?);
+}
+
+test "parseBuilder: shorthand address defaults to list" {
+    const r = parseBuilder(&.{"SomeAddress"});
+    try std.testing.expect(r.action == .list);
+    try std.testing.expectEqualStrings("SomeAddress", r.address.?);
+}
+
+test "parseBuilder: no args defaults to list" {
+    const r = parseBuilder(&.{});
+    try std.testing.expect(r.action == .list);
+}
+
+test "parseOrder: --builder flag sets builder code" {
+    const r = parseOrder(&.{ "BTC", "0.1", "@50000", "--builder", "mybuilder" }, false).?;
+    try std.testing.expectEqualStrings("mybuilder", r.builder.?);
+    try std.testing.expect(!r.no_builder);
+}
+
+test "parseOrder: --no-builder flag sets no_builder" {
+    const r = parseOrder(&.{ "BTC", "0.1", "@50000", "--no-builder" }, false).?;
+    try std.testing.expect(r.builder == null);
+    try std.testing.expect(r.no_builder);
+}
+
+test "parseOrder: --no-builder overrides --builder" {
+    const r = parseOrder(&.{ "BTC", "0.1", "@50000", "--builder", "mybuilder", "--no-builder" }, false).?;
+    // Last flag wins in the parser
+    try std.testing.expect(r.no_builder);
+}
+
+test "parseStop: --builder flag sets builder code" {
+    const r = parseStop(&.{ "BTC", "--side", "long", "--stop-price", "48000", "--limit-price", "47950", "--amount", "0.1", "--builder", "stopbuilder" }, false);
+    try std.testing.expectEqualStrings("stopbuilder", r.builder.?);
+    try std.testing.expect(!r.no_builder);
+}
+
+test "parseStop: --no-builder flag sets no_builder" {
+    const r = parseStop(&.{ "BTC", "--side", "long", "--stop-price", "48000", "--limit-price", "47950", "--amount", "0.1", "--no-builder" }, false);
+    try std.testing.expect(r.builder == null);
+    try std.testing.expect(r.no_builder);
+}
+
+test "parseTpSl: --builder flag sets builder code" {
+    const r = parseTpSl(&.{ "BTC", "ask", "--tp", "120000", "--builder", "tpslbuilder" }, false).?;
+    try std.testing.expectEqualStrings("tpslbuilder", r.builder.?);
+    try std.testing.expect(!r.no_builder);
+}
+
+test "parseTpSl: --no-builder flag sets no_builder" {
+    const r = parseTpSl(&.{ "BTC", "ask", "--tp", "120000", "--no-builder" }, false).?;
+    try std.testing.expect(r.builder == null);
+    try std.testing.expect(r.no_builder);
+}
+
+test "parseTwap: --builder flag sets builder code" {
+    const r = parseTwap(&.{ "BTC", "buy", "1.0", "--duration", "300", "--builder", "twapbuilder" }, false);
+    try std.testing.expect(r.action == .create);
+    try std.testing.expectEqualStrings("twapbuilder", r.builder.?);
+    try std.testing.expect(!r.no_builder);
+}
+
+test "parseTwap: --no-builder flag sets no_builder" {
+    const r = parseTwap(&.{ "BTC", "buy", "1.0", "--duration", "300", "--no-builder" }, false);
+    try std.testing.expect(r.action == .create);
+    try std.testing.expect(r.builder == null);
+    try std.testing.expect(r.no_builder);
 }
