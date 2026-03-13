@@ -38,6 +38,7 @@ pub const Command = union(enum) {
     access: AccessArgs,
     stream: StreamArgs,
     batch: BatchArgs,
+    builder: BuilderArgs,
     help: HelpArgs,
     version: void,
 };
@@ -52,6 +53,8 @@ pub const OrderArgs = struct {
     reduce_only: bool = false,
     tif: []const u8 = "GTC",
     dry_run: bool = false,
+    builder: ?[]const u8 = null,
+    no_builder: bool = false,
 };
 
 pub const CancelArgs = struct {
@@ -140,6 +143,8 @@ pub const StopArgs = struct {
     amount: ?[]const u8 = null,
     order_id: ?[]const u8 = null,
     dry_run: bool = false,
+    builder: ?[]const u8 = null,
+    no_builder: bool = false,
 };
 
 pub const StopAction = enum { create, cancel };
@@ -153,6 +158,8 @@ pub const TpSlArgs = struct {
     sl: ?[]const u8 = null,
     sl_limit: ?[]const u8 = null,
     dry_run: bool = false,
+    builder: ?[]const u8 = null,
+    no_builder: bool = false,
 };
 
 pub const TwapArgs = struct {
@@ -165,6 +172,8 @@ pub const TwapArgs = struct {
     order_id: ?[]const u8 = null,
     address: ?[]const u8 = null,
     dry_run: bool = false,
+    builder: ?[]const u8 = null,
+    no_builder: bool = false,
 };
 
 pub const TwapAction = enum { create, cancel, list, history };
@@ -210,6 +219,15 @@ pub const AccessArgs = struct {
 };
 
 pub const AccessAction = enum { claim, status };
+
+pub const BuilderArgs = struct {
+    action: BuilderAction = .list,
+    code: ?[]const u8 = null,
+    max_fee_rate: ?[]const u8 = null,
+    address: ?[]const u8 = null,
+};
+
+pub const BuilderAction = enum { approve, revoke, list, overview };
 
 pub const StreamArgs = struct {
     kind: StreamKind = .prices,
@@ -406,6 +424,8 @@ pub fn parse(allocator: std.mem.Allocator) ParseError!ParseResult {
         .{ .stream = parseStream(rest) }
     else if (std.mem.eql(u8, cmd_str, "batch"))
         .{ .batch = parseBatch(rest) }
+    else if (std.mem.eql(u8, cmd_str, "builder"))
+        .{ .builder = parseBuilder(rest) }
     else if (std.mem.eql(u8, cmd_str, "help") or std.mem.eql(u8, cmd_str, "--help") or std.mem.eql(u8, cmd_str, "-h"))
         .{ .help = .{ .topic = if (rest.len > 0) rest[0] else null } }
     else if (std.mem.eql(u8, cmd_str, "version") or std.mem.eql(u8, cmd_str, "--version") or std.mem.eql(u8, cmd_str, "-V"))
@@ -434,6 +454,11 @@ fn parseOrder(args: []const []const u8, global_dry_run: bool) ?OrderArgs {
         } else if (std.mem.eql(u8, a, "--slippage") and i + 1 < args.len) {
             i += 1;
             result.slippage = args[i];
+        } else if (std.mem.eql(u8, a, "--builder") and i + 1 < args.len) {
+            i += 1;
+            result.builder = args[i];
+        } else if (std.mem.eql(u8, a, "--no-builder")) {
+            result.no_builder = true;
         } else if (std.mem.eql(u8, a, "--dry-run") or std.mem.eql(u8, a, "-n")) {
             result.dry_run = true;
         } else if (!std.mem.startsWith(u8, a, "--")) {
@@ -634,6 +659,11 @@ fn parseStop(args: []const []const u8, global_dry_run: bool) StopArgs {
         } else if (std.mem.eql(u8, args[i], "--amount") and i + 1 < args.len) {
             i += 1;
             result.amount = args[i];
+        } else if (std.mem.eql(u8, args[i], "--builder") and i + 1 < args.len) {
+            i += 1;
+            result.builder = args[i];
+        } else if (std.mem.eql(u8, args[i], "--no-builder")) {
+            result.no_builder = true;
         } else if (std.mem.eql(u8, args[i], "--dry-run")) {
             result.dry_run = true;
         }
@@ -661,6 +691,11 @@ fn parseTpSl(args: []const []const u8, global_dry_run: bool) ?TpSlArgs {
         } else if (std.mem.eql(u8, args[i], "--sl-limit") and i + 1 < args.len) {
             i += 1;
             result.sl_limit = args[i];
+        } else if (std.mem.eql(u8, args[i], "--builder") and i + 1 < args.len) {
+            i += 1;
+            result.builder = args[i];
+        } else if (std.mem.eql(u8, args[i], "--no-builder")) {
+            result.no_builder = true;
         } else if (std.mem.eql(u8, args[i], "--dry-run")) {
             result.dry_run = true;
         }
@@ -699,6 +734,11 @@ fn parseTwap(args: []const []const u8, global_dry_run: bool) TwapArgs {
         } else if (std.mem.eql(u8, args[i], "--slippage") and i + 1 < args.len) {
             i += 1;
             result.slippage = args[i];
+        } else if (std.mem.eql(u8, args[i], "--builder") and i + 1 < args.len) {
+            i += 1;
+            result.builder = args[i];
+        } else if (std.mem.eql(u8, args[i], "--no-builder")) {
+            result.no_builder = true;
         } else if (std.mem.eql(u8, args[i], "--dry-run")) {
             result.dry_run = true;
         }
@@ -924,6 +964,37 @@ fn parseBatch(a: []const []const u8) BatchArgs {
             result.count += 1;
         }
     }
+    return result;
+}
+
+fn parseBuilder(args: []const []const u8) BuilderArgs {
+    var result = BuilderArgs{};
+    if (args.len == 0) return result;
+
+    if (std.mem.eql(u8, args[0], "approve")) {
+        result.action = .approve;
+        if (args.len > 1) result.code = args[1];
+        var i: usize = 2;
+        while (i < args.len) : (i += 1) {
+            if (std.mem.eql(u8, args[i], "--max-fee-rate") and i + 1 < args.len) {
+                i += 1;
+                result.max_fee_rate = args[i];
+            }
+        }
+    } else if (std.mem.eql(u8, args[0], "revoke")) {
+        result.action = .revoke;
+        if (args.len > 1) result.code = args[1];
+    } else if (std.mem.eql(u8, args[0], "list") or std.mem.eql(u8, args[0], "ls")) {
+        result.action = .list;
+        if (args.len > 1) result.address = args[1];
+    } else if (std.mem.eql(u8, args[0], "overview")) {
+        result.action = .overview;
+        if (args.len > 1) result.address = args[1];
+    } else {
+        result.action = .list;
+        result.address = args[0];
+    }
+
     return result;
 }
 

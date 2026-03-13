@@ -346,4 +346,16 @@ pub const Client = struct {
         if (cursor) |c| len += (std.fmt.bufPrint(q[len..], "&cursor={s}", .{c}) catch return error.UrlTooLong).len;
         return self.get("/account/balance/history", q[0..len]);
     }
+
+    // ── Builder endpoints ─────────────────────────────────────
+
+    pub fn getBuilderApprovals(self: *Client, account: []const u8) !Response {
+        var q: [128]u8 = undefined;
+        return self.get("/account/builder_codes/approvals", accountQuery(&q, account));
+    }
+
+    pub fn getBuilderOverview(self: *Client, account: []const u8) !Response {
+        var q: [128]u8 = undefined;
+        return self.get("/builder/overview", accountQuery(&q, account));
+    }
 };

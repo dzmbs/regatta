@@ -118,6 +118,7 @@ pub fn main() void {
         .access => |a| commands.accessCmd(allocator, &w, &config, a) catch |e| exit(&w, cmd_name, e),
         .stream => |a| commands.streamCmd(allocator, &w, &config, a) catch |e| exit(&w, cmd_name, e),
         .batch => |a| commands.batchCmd(allocator, &w, &config, a) catch |e| exit(&w, cmd_name, e),
+        .builder => |a| commands.builderCmd(allocator, &w, &config, a) catch |e| exit(&w, cmd_name, e),
     }
 }
 

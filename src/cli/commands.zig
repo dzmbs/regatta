@@ -47,6 +47,21 @@ fn doSignedWs(
     return ws_client.signedAction(&rest_client, op_name, signer, ctx.account_addr, msg_type, payload, ctx.agent_pubkey);
 }
 
+/// Resolve builder code with precedence: --no-builder > --builder > PACIFICA_BUILDER_CODE
+fn resolveBuilderCode(w: *Writer, config: *Config, no_builder: bool, builder_arg: ?[]const u8) !?[]const u8 {
+    if (no_builder) return null;
+    const code = builder_arg orelse config.builder_code orelse return null;
+    config_mod.validateBuilderCode(code) catch |e| {
+        switch (e) {
+            error.EmptyBuilderCode => try w.err("builder code cannot be empty"),
+            error.BuilderCodeTooLong => try w.err("builder code must be 16 characters or less"),
+            error.InvalidBuilderCodeChar => try w.err("builder code must be alphanumeric only"),
+        }
+        return error.InvalidFlag;
+    };
+    return code;
+}
+
 pub fn keysCmd(allocator: std.mem.Allocator, w: *Writer, a: args_mod.KeysArgs) !void {
     const password = a.password orelse std.posix.getenv("PACIFICA_PASSWORD") orelse {
         if (a.action == .ls) return keysLs(allocator, w);
@@ -755,6 +770,8 @@ pub fn placeOrder(allocator: std.mem.Allocator, w: *Writer, config: *Config, a: 
     };
     defer resolved.deinit(allocator);
 
+    const builder_code = try resolveBuilderCode(w, config, a.no_builder, a.builder);
+
     if (a.price) |price| {
         var uuid_buf: [36]u8 = undefined;
         const cloid = lib.uuid.v4(&uuid_buf);
@@ -767,6 +784,7 @@ pub fn placeOrder(allocator: std.mem.Allocator, w: *Writer, config: *Config, a: 
         try payload.put("tif", .{ .string = a.tif });
         try payload.put("reduce_only", .{ .bool = a.reduce_only });
         try payload.put("client_order_id", .{ .string = cloid });
+        if (builder_code) |bc| try payload.put("builder_code", .{ .string = bc });
 
         if (a.dry_run) {
             var signed = try sdk.signing.signRequest(aa, &signer, "create_order", .{ .object = payload }, @intCast(std.time.milliTimestamp()), 5000);
@@ -800,6 +818,7 @@ pub fn placeOrder(allocator: std.mem.Allocator, w: *Writer, config: *Config, a: 
         try payload.put("slippage_percent", .{ .string = a.slippage orelse "0.5" });
         try payload.put("reduce_only", .{ .bool = a.reduce_only });
         try payload.put("client_order_id", .{ .string = cloid });
+        if (builder_code) |bc| try payload.put("builder_code", .{ .string = bc });
 
         if (a.dry_run) {
             var signed = try sdk.signing.signRequest(aa, &signer, "create_market_order", .{ .object = payload }, @intCast(std.time.milliTimestamp()), 5000);
@@ -1030,6 +1049,7 @@ pub fn stopCmd(allocator: std.mem.Allocator, w: *Writer, config: *Config, a: arg
         .create => {
             const stop_price = a.stop_price orelse return error.MissingArgument;
             const side = a.side orelse return error.MissingArgument;
+            const builder_code = try resolveBuilderCode(w, config, a.no_builder, a.builder);
 
             var stop_obj = std.json.ObjectMap.init(aa);
             try stop_obj.put("stop_price", .{ .string = stop_price });
@@ -1043,6 +1063,7 @@ pub fn stopCmd(allocator: std.mem.Allocator, w: *Writer, config: *Config, a: arg
             try payload.put("side", .{ .string = mapPositionCloseSide(side) });
             try payload.put("reduce_only", .{ .bool = true });
             try payload.put("stop_order", .{ .object = stop_obj });
+            if (builder_code) |bc| try payload.put("builder_code", .{ .string = bc });
 
             if (a.dry_run) {
                 var signed = try sdk.signing.signRequest(aa, &signer, "create_stop_order", .{ .object = payload }, @intCast(std.time.milliTimestamp()), 5000);
@@ -1073,6 +1094,8 @@ pub fn tpslCmd(allocator: std.mem.Allocator, w: *Writer, config: *Config, a: arg
     defer arena.deinit();
     const aa = arena.allocator();
 
+    const builder_code = try resolveBuilderCode(w, config, a.no_builder, a.builder);
+
     var payload = std.json.ObjectMap.init(aa);
     try payload.put("symbol", .{ .string = a.symbol });
     try payload.put("side", .{ .string = mapPositionCloseSide(a.side) });
@@ -1093,6 +1116,8 @@ pub fn tpslCmd(allocator: std.mem.Allocator, w: *Writer, config: *Config, a: arg
         if (a.sl_limit) |sll| try sl_obj.put("limit_price", .{ .string = sll });
         try payload.put("stop_loss", .{ .object = sl_obj });
     }
+
+    if (builder_code) |bc| try payload.put("builder_code", .{ .string = bc });
 
     if (a.dry_run) {
         var signed = try sdk.signing.signRequest(aa, &signer, "set_position_tpsl", .{ .object = payload }, @intCast(std.time.milliTimestamp()), 5000);
@@ -1165,6 +1190,7 @@ pub fn twapCmd(allocator: std.mem.Allocator, w: *Writer, config: *Config, a: arg
             const amount = a.amount orelse return error.MissingArgument;
             const duration = a.duration orelse return error.MissingArgument;
             const duration_secs = std.fmt.parseInt(i64, duration, 10) catch return error.InvalidFlag;
+            const builder_code = try resolveBuilderCode(w, config, a.no_builder, a.builder);
 
             const side = mapSide(raw_side);
 
@@ -1178,6 +1204,7 @@ pub fn twapCmd(allocator: std.mem.Allocator, w: *Writer, config: *Config, a: arg
 
             var uuid_buf: [36]u8 = undefined;
             try payload.put("client_order_id", .{ .string = lib.uuid.v4(&uuid_buf) });
+            if (builder_code) |bc| try payload.put("builder_code", .{ .string = bc });
 
             if (a.dry_run) {
                 var signed = try sdk.signing.signRequest(aa, &signer, "create_twap_order", .{ .object = payload }, @intCast(std.time.milliTimestamp()), 5000);
@@ -1484,6 +1511,98 @@ pub fn accessCmd(allocator: std.mem.Allocator, w: *Writer, config: *Config, a: a
             } else "-";
             try w.kv("Address", addr);
             try w.kv("Whitelisted", status);
+            try w.footer();
+        },
+    }
+}
+
+pub fn builderCmd(allocator: std.mem.Allocator, w: *Writer, config: *Config, a: args_mod.BuilderArgs) !void {
+    var client = Client.init(allocator, config.chain);
+    defer client.deinit();
+
+    switch (a.action) {
+        .approve => {
+            const code = a.code orelse return error.MissingArgument;
+            const max_fee_rate = a.max_fee_rate orelse return error.MissingArgument;
+            const signer = config.getSigner() catch return error.MissingKey;
+
+            var arena = std.heap.ArenaAllocator.init(allocator);
+            defer arena.deinit();
+            const aa = arena.allocator();
+
+            var payload = std.json.ObjectMap.init(aa);
+            try payload.put("builder_code", .{ .string = code });
+            try payload.put("max_fee_rate", .{ .string = max_fee_rate });
+
+            var resp = try doSignedPost(&client, "/account/builder_codes/approve", &signer, config, "approve_builder_code", .{ .object = payload });
+            defer resp.deinit();
+
+            if (w.format == .json) return checkJsonResponse(w, resp.body);
+            try handleSignedResponse(w, allocator, resp.body, "builder code approved");
+        },
+        .revoke => {
+            const code = a.code orelse return error.MissingArgument;
+            const signer = config.getSigner() catch return error.MissingKey;
+
+            var arena = std.heap.ArenaAllocator.init(allocator);
+            defer arena.deinit();
+            const aa = arena.allocator();
+
+            var payload = std.json.ObjectMap.init(aa);
+            try payload.put("builder_code", .{ .string = code });
+
+            var resp = try doSignedPost(&client, "/account/builder_codes/revoke", &signer, config, "revoke_builder_code", .{ .object = payload });
+            defer resp.deinit();
+
+            if (w.format == .json) return checkJsonResponse(w, resp.body);
+            try handleSignedResponse(w, allocator, resp.body, "builder code revoked");
+        },
+        .list => {
+            const addr = a.address orelse config.getAddress() orelse return error.MissingAddress;
+            var resp = try client.getBuilderApprovals(addr);
+            defer resp.deinit();
+
+            if (w.format == .json) return checkJsonResponse(w, resp.body);
+
+            try w.heading("Builder Code Approvals");
+            var result = try parseAndExtractData(w, allocator, resp.body);
+            defer result.parsed.deinit();
+            switch (result.data) {
+                .array => |arr| {
+                    if (arr.items.len == 0) {
+                        try w.styled(Style.muted, "  no builder codes approved\n");
+                    } else {
+                        try w.tableHeader(&.{
+                            .{ .text = "CODE", .width = 16 },
+                            .{ .text = "MAX FEE RATE", .width = 14, .align_right = true },
+                            .{ .text = "DESCRIPTION", .width = 40 },
+                        });
+                        for (arr.items) |item| {
+                            const obj = switch (item) {
+                                .object => |o| o,
+                                else => continue,
+                            };
+                            try w.tableRow(&.{
+                                .{ .text = jsonStr(obj, "builder_code"), .width = 16, .color = Style.bold_cyan },
+                                .{ .text = jsonStr(obj, "max_fee_rate"), .width = 14, .align_right = true },
+                                .{ .text = jsonStr(obj, "description"), .width = 40 },
+                            });
+                        }
+                    }
+                },
+                else => try w.rawJson(resp.body),
+            }
+            try w.footer();
+        },
+        .overview => {
+            const addr = a.address orelse config.getAddress() orelse return error.MissingAddress;
+            var resp = try client.getBuilderOverview(addr);
+            defer resp.deinit();
+
+            if (w.format == .json) return checkJsonResponse(w, resp.body);
+
+            try w.heading("Builder Overview");
+            try w.rawJson(resp.body);
             try w.footer();
         },
     }

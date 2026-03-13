@@ -20,6 +20,7 @@ pub const Config = struct {
     use_ws: bool = false,
     agent_wallet: ?[]const u8 = null,
     solana_rpc_url: ?[]const u8 = null,
+    builder_code: ?[]const u8 = null,
     env_buf: ?[]u8 = null,
     key_alloc: ?[]u8 = null,
     allocator: std.mem.Allocator,
@@ -83,6 +84,17 @@ pub const Config = struct {
     }
 };
 
+/// Validate builder code format: alphanumeric only, max 16 characters.
+pub fn validateBuilderCode(code: []const u8) !void {
+    if (code.len == 0) return error.EmptyBuilderCode;
+    if (code.len > 16) return error.BuilderCodeTooLong;
+    for (code) |c| {
+        const is_alpha = (c >= 'a' and c <= 'z') or (c >= 'A' and c <= 'Z');
+        const is_digit = c >= '0' and c <= '9';
+        if (!is_alpha and !is_digit) return error.InvalidBuilderCodeChar;
+    }
+}
+
 pub fn load(allocator: std.mem.Allocator, flags: args_mod.GlobalFlags) Config {
     var config = Config{ .allocator = allocator };
 
@@ -100,6 +112,7 @@ pub fn load(allocator: std.mem.Allocator, flags: args_mod.GlobalFlags) Config {
     }
     if (getEnv("PACIFICA_AGENT_WALLET")) |v| config.agent_wallet = v;
     if (getEnv("SOLANA_RPC_URL")) |v| config.solana_rpc_url = v;
+    if (getEnv("PACIFICA_BUILDER_CODE")) |v| config.builder_code = v;
 
     // CLI flags override everything
     if (flags.key) |k| config.key_b58 = k;
@@ -190,6 +203,8 @@ fn parseEnvBuf(buf: []const u8, config: *Config) void {
             _ = v;
         } else if (parseEnvLine(trimmed, "SOLANA_RPC_URL=")) |v| {
             if (config.solana_rpc_url == null) config.solana_rpc_url = v;
+        } else if (parseEnvLine(trimmed, "PACIFICA_BUILDER_CODE=")) |v| {
+            if (config.builder_code == null) config.builder_code = v;
         }
     }
 }
