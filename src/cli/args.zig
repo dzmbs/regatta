@@ -1113,3 +1113,99 @@ test "parseBatch: --stdin vs inline orders" {
     try std.testing.expect(!inline_.stdin);
     try std.testing.expectEqual(@as(usize, 2), inline_.count);
 }
+
+test "parseBuilder: approve with code and max fee rate" {
+    const r = parseBuilder(&.{ "approve", "mybuilder", "--max-fee-rate", "0.05" });
+    try std.testing.expect(r.action == .approve);
+    try std.testing.expectEqualStrings("mybuilder", r.code.?);
+    try std.testing.expectEqualStrings("0.05", r.max_fee_rate.?);
+}
+
+test "parseBuilder: revoke with code" {
+    const r = parseBuilder(&.{ "revoke", "oldbuilder" });
+    try std.testing.expect(r.action == .revoke);
+    try std.testing.expectEqualStrings("oldbuilder", r.code.?);
+}
+
+test "parseBuilder: list action variants" {
+    const list = parseBuilder(&.{ "list", "AddrXYZ" });
+    try std.testing.expect(list.action == .list);
+    try std.testing.expectEqualStrings("AddrXYZ", list.address.?);
+
+    const ls = parseBuilder(&.{ "ls", "AddrABC" });
+    try std.testing.expect(ls.action == .list);
+    try std.testing.expectEqualStrings("AddrABC", ls.address.?);
+}
+
+test "parseBuilder: overview action" {
+    const r = parseBuilder(&.{ "overview", "BuilderAddr" });
+    try std.testing.expect(r.action == .overview);
+    try std.testing.expectEqualStrings("BuilderAddr", r.address.?);
+}
+
+test "parseBuilder: shorthand address defaults to list" {
+    const r = parseBuilder(&.{"SomeAddress"});
+    try std.testing.expect(r.action == .list);
+    try std.testing.expectEqualStrings("SomeAddress", r.address.?);
+}
+
+test "parseBuilder: no args defaults to list" {
+    const r = parseBuilder(&.{});
+    try std.testing.expect(r.action == .list);
+}
+
+test "parseOrder: --builder flag sets builder code" {
+    const r = parseOrder(&.{ "BTC", "0.1", "@50000", "--builder", "mybuilder" }, false).?;
+    try std.testing.expectEqualStrings("mybuilder", r.builder.?);
+    try std.testing.expect(!r.no_builder);
+}
+
+test "parseOrder: --no-builder flag sets no_builder" {
+    const r = parseOrder(&.{ "BTC", "0.1", "@50000", "--no-builder" }, false).?;
+    try std.testing.expect(r.builder == null);
+    try std.testing.expect(r.no_builder);
+}
+
+test "parseOrder: --no-builder overrides --builder" {
+    const r = parseOrder(&.{ "BTC", "0.1", "@50000", "--builder", "mybuilder", "--no-builder" }, false).?;
+    // Last flag wins in the parser
+    try std.testing.expect(r.no_builder);
+}
+
+test "parseStop: --builder flag sets builder code" {
+    const r = parseStop(&.{ "BTC", "--side", "long", "--stop-price", "48000", "--limit-price", "47950", "--amount", "0.1", "--builder", "stopbuilder" }, false);
+    try std.testing.expectEqualStrings("stopbuilder", r.builder.?);
+    try std.testing.expect(!r.no_builder);
+}
+
+test "parseStop: --no-builder flag sets no_builder" {
+    const r = parseStop(&.{ "BTC", "--side", "long", "--stop-price", "48000", "--limit-price", "47950", "--amount", "0.1", "--no-builder" }, false);
+    try std.testing.expect(r.builder == null);
+    try std.testing.expect(r.no_builder);
+}
+
+test "parseTpSl: --builder flag sets builder code" {
+    const r = parseTpSl(&.{ "BTC", "ask", "--tp", "120000", "--builder", "tpslbuilder" }, false).?;
+    try std.testing.expectEqualStrings("tpslbuilder", r.builder.?);
+    try std.testing.expect(!r.no_builder);
+}
+
+test "parseTpSl: --no-builder flag sets no_builder" {
+    const r = parseTpSl(&.{ "BTC", "ask", "--tp", "120000", "--no-builder" }, false).?;
+    try std.testing.expect(r.builder == null);
+    try std.testing.expect(r.no_builder);
+}
+
+test "parseTwap: --builder flag sets builder code" {
+    const r = parseTwap(&.{ "BTC", "buy", "1.0", "--duration", "300", "--builder", "twapbuilder" }, false);
+    try std.testing.expect(r.action == .create);
+    try std.testing.expectEqualStrings("twapbuilder", r.builder.?);
+    try std.testing.expect(!r.no_builder);
+}
+
+test "parseTwap: --no-builder flag sets no_builder" {
+    const r = parseTwap(&.{ "BTC", "buy", "1.0", "--duration", "300", "--no-builder" }, false);
+    try std.testing.expect(r.action == .create);
+    try std.testing.expect(r.builder == null);
+    try std.testing.expect(r.no_builder);
+}

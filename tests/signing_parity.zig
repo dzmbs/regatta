@@ -170,3 +170,136 @@ test "golden parity: all signing vectors match Python SDK" {
         }
     }
 }
+
+test "builder_code: included in signed message for create_order" {
+    const allocator = testing.allocator;
+    const signer = try Signer.fromBase58(TEST_SECRET_B58);
+    
+    const payload_json =
+        \\{"symbol":"BTC","price":"100000","amount":"0.1","side":"bid","tif":"GTC","reduce_only":false,"client_order_id":"12345678-1234-1234-1234-123456789abc","builder_code":"mybuilder"}
+    ;
+    const parsed = try std.json.parseFromSlice(std.json.Value, allocator, payload_json, .{});
+    defer parsed.deinit();
+
+    var result = try signing.signRequest(
+        allocator,
+        &signer,
+        "create_order",
+        parsed.value,
+        1709000000000,
+        5000,
+    );
+    defer result.deinit();
+
+    // Verify builder_code is in the message
+    try testing.expect(std.mem.indexOf(u8, result.message, "\"builder_code\":\"mybuilder\"") != null);
+    
+    // Verify message structure
+    try testing.expect(std.mem.indexOf(u8, result.message, "\"data\":{") != null);
+    try testing.expect(std.mem.indexOf(u8, result.message, "\"type\":\"create_order\"") != null);
+}
+
+test "builder_code: included in signed message for create_market_order" {
+    const allocator = testing.allocator;
+    const signer = try Signer.fromBase58(TEST_SECRET_B58);
+    
+    const payload_json =
+        \\{"symbol":"ETH","amount":"2.0","side":"ask","slippage_percent":"0.5","reduce_only":false,"client_order_id":"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee","builder_code":"ABC123"}
+    ;
+    const parsed = try std.json.parseFromSlice(std.json.Value, allocator, payload_json, .{});
+    defer parsed.deinit();
+
+    var result = try signing.signRequest(
+        allocator,
+        &signer,
+        "create_market_order",
+        parsed.value,
+        1709000000000,
+        5000,
+    );
+    defer result.deinit();
+
+    // Verify builder_code is in the message
+    try testing.expect(std.mem.indexOf(u8, result.message, "\"builder_code\":\"ABC123\"") != null);
+    try testing.expect(std.mem.indexOf(u8, result.message, "\"type\":\"create_market_order\"") != null);
+}
+
+test "builder_code: included at top level for set_position_tpsl" {
+    const allocator = testing.allocator;
+    const signer = try Signer.fromBase58(TEST_SECRET_B58);
+    
+    const payload_json =
+        \\{"symbol":"BTC","side":"ask","tp_trigger":"120000","tp_limit":"120500","sl_trigger":"95000","sl_limit":"94800","builder_code":"tpslbuilder"}
+    ;
+    const parsed = try std.json.parseFromSlice(std.json.Value, allocator, payload_json, .{});
+    defer parsed.deinit();
+
+    var result = try signing.signRequest(
+        allocator,
+        &signer,
+        "set_position_tpsl",
+        parsed.value,
+        1709000000000,
+        5000,
+    );
+    defer result.deinit();
+
+    // Verify builder_code is at top level in data, not nested
+    try testing.expect(std.mem.indexOf(u8, result.message, "\"builder_code\":\"tpslbuilder\"") != null);
+    
+    // Verify TP/SL fields are also present
+    try testing.expect(std.mem.indexOf(u8, result.message, "\"tp_trigger\":\"120000\"") != null);
+    try testing.expect(std.mem.indexOf(u8, result.message, "\"sl_limit\":\"94800\"") != null);
+}
+
+test "builder_code: included in signed message for create_stop_order" {
+    const allocator = testing.allocator;
+    const signer = try Signer.fromBase58(TEST_SECRET_B58);
+    
+    const payload_json =
+        \\{"symbol":"SOL","side":"bid","stop_price":"150","limit_price":"149.50","amount":"100","reduce_only":false,"client_order_id":"stop-12345678-1234-1234-1234-123456789abc","builder_code":"stopbuilder"}
+    ;
+    const parsed = try std.json.parseFromSlice(std.json.Value, allocator, payload_json, .{});
+    defer parsed.deinit();
+
+    var result = try signing.signRequest(
+        allocator,
+        &signer,
+        "create_stop_order",
+        parsed.value,
+        1709000000000,
+        5000,
+    );
+    defer result.deinit();
+
+    // Verify builder_code is in the message
+    try testing.expect(std.mem.indexOf(u8, result.message, "\"builder_code\":\"stopbuilder\"") != null);
+    try testing.expect(std.mem.indexOf(u8, result.message, "\"type\":\"create_stop_order\"") != null);
+}
+
+test "builder_code: message signs successfully without builder_code" {
+    const allocator = testing.allocator;
+    const signer = try Signer.fromBase58(TEST_SECRET_B58);
+    
+    const payload_json =
+        \\{"symbol":"BTC","price":"100000","amount":"0.1","side":"bid","tif":"GTC","reduce_only":false,"client_order_id":"12345678-1234-1234-1234-123456789abc"}
+    ;
+    const parsed = try std.json.parseFromSlice(std.json.Value, allocator, payload_json, .{});
+    defer parsed.deinit();
+
+    var result = try signing.signRequest(
+        allocator,
+        &signer,
+        "create_order",
+        parsed.value,
+        1709000000000,
+        5000,
+    );
+    defer result.deinit();
+
+    // Verify builder_code is NOT in the message
+    try testing.expect(std.mem.indexOf(u8, result.message, "builder_code") == null);
+    
+    // But the message should still be valid
+    try testing.expect(std.mem.indexOf(u8, result.message, "\"type\":\"create_order\"") != null);
+}
